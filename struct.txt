@@ -1,0 +1,19 @@
+interpreter/
+├── include/
+│   ├── lexer.h          # Лексический анализатор
+│   ├── token.h          # Типы токенов
+│   ├── symbol_table.h   # Таблица символов
+│   ├── poliz.h          # ПОЛИЗ (внутреннее представление)
+│   ├── parser.h         # Синтаксический анализатор
+│   ├── interpreter.h    # Интерпретатор ПОЛИЗа
+│   └── value.h          # Вариантный тип для значений
+├── src/
+│   ├── lexer.cpp
+│   ├── token.cpp
+│   ├── symbol_table.cpp
+│   ├── poliz.cpp
+│   ├── parser.cpp
+│   ├── interpreter.cpp
+│   ├── value.cpp
+│   └── main.cpp
+└── CMakeLists.txt

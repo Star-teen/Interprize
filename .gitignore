@@ -1,0 +1,42 @@
+# Compiled files
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Build directories
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug and temporary files
+*.log
+*.tmp
+*.temp
+*.dSYM/
+
+# Backup files
+*.bak
+*.backup
+
+# User-specific files
+*.user
+*.userworkspace
+
+# Compiled Python (если есть скрипты)
+*.pyc
+
+# Test outputs
+test_output.txt
