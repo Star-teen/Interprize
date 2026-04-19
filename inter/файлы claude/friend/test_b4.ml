@@ -1,0 +1,5 @@
+program
+{
+    int x = 5
+    write (x);
+}
