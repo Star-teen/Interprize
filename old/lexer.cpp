@@ -47,7 +47,6 @@ void Lexer::initOperatorMap() {
     operatorMap["-"] = TokenType::OP_MINUS;
     operatorMap["*"] = TokenType::OP_MUL;
     operatorMap["/"] = TokenType::OP_DIV;
-    operatorMap["%"] = TokenType::OP_MOD;
     operatorMap["<"] = TokenType::OP_LT;
     operatorMap[">"] = TokenType::OP_GT;
     operatorMap[";"] = TokenType::SEP_SEMICOLON;
@@ -244,10 +243,10 @@ Token Lexer::processIDENT() {
     state = State::H;
     
     // Проверяем, не служебное ли это слово
-    TokenType kwType = Token::getKeywordType(buffer);
-    if (kwType != TokenType::IDENTIFIER) {
+    TokenType LEXType = Token::getKeywordType(buffer);
+    if (LEXType != TokenType::IDENTIFIER) {
         // Служебное слово
-        return Token(kwType, buffer, line, column - buffer.length());
+        return Token(LEXType, buffer, line, column - buffer.length());
     }
     
     // Обычный идентификатор

@@ -21,7 +21,6 @@ string polizCmdToString(PolizCmd cmd) {
         case PolizCmd::SUB:             return "SUB";
         case PolizCmd::MUL:             return "MUL";
         case PolizCmd::DIV:             return "DIV";
-        case PolizCmd::MOD:             return "MOD";
         case PolizCmd::NEG:             return "NEG";
         case PolizCmd::AND:             return "AND";
         case PolizCmd::OR:              return "OR";
@@ -158,16 +157,15 @@ void Poliz::emit(const Token& token) {
         case TokenType::OP_MINUS:   emit(PolizCmd::SUB); break;
         case TokenType::OP_MUL:     emit(PolizCmd::MUL); break;
         case TokenType::OP_DIV:     emit(PolizCmd::DIV); break;
-        case TokenType::OP_MOD:     emit(PolizCmd::MOD); break;
         case TokenType::OP_LT:      emit(PolizCmd::LESS); break;
         case TokenType::OP_GT:      emit(PolizCmd::GREATER); break;
         case TokenType::OP_LE:      emit(PolizCmd::LE); break;
         case TokenType::OP_GE:      emit(PolizCmd::GE); break;
         case TokenType::OP_EQ:      emit(PolizCmd::EQ); break;
         case TokenType::OP_NE:      emit(PolizCmd::NE); break;
-        case TokenType::KW_AND:     emit(PolizCmd::AND); break;
-        case TokenType::KW_OR:      emit(PolizCmd::OR); break;
-        case TokenType::KW_NOT:     emit(PolizCmd::NOT); break;
+        case TokenType::LEX_AND:     emit(PolizCmd::AND); break;
+        case TokenType::LEX_OR:      emit(PolizCmd::OR); break;
+        case TokenType::LEX_NOT:     emit(PolizCmd::NOT); break;
         default:
             // Игнорируем остальные
             break;
@@ -337,7 +335,6 @@ void Poliz::printDisassembly() const {
             case PolizCmd::SUB: cout << "sub"; break;
             case PolizCmd::MUL: cout << "mul"; break;
             case PolizCmd::DIV: cout << "div"; break;
-            case PolizCmd::MOD: cout << "mod"; break;
             case PolizCmd::NEG: cout << "neg"; break;
             case PolizCmd::AND: cout << "and"; break;
             case PolizCmd::OR:  cout << "or"; break;

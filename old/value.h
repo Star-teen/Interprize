@@ -64,7 +64,6 @@ public:
     Value operator-(const Value& other) const;
     Value operator*(const Value& other) const;
     Value operator/(const Value& other) const;
-    Value operator%(const Value& other) const;
     Value operator-() const;        // унарный минус
     
     //========================================================================

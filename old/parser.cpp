@@ -81,7 +81,7 @@ void Parser::checkBinaryOp(DataType left, DataType right, TokenType op) {
                     op == TokenType::OP_EQ || op == TokenType::OP_NE);
     
     // Логические операции требуют int операндов
-    bool isLogicalOp = (op == TokenType::KW_AND || op == TokenType::KW_OR);
+    bool isLogicalOp = (op == TokenType::LEX_AND || op == TokenType::LEX_OR);
     
     if (isLogicalOp) {
         if (left != DataType::INT || right != DataType::INT) {
@@ -146,15 +146,14 @@ void Parser::generateBinaryOp(TokenType op) {
         case TokenType::OP_MINUS: poliz.emit(PolizCmd::SUB); break;
         case TokenType::OP_MUL:   poliz.emit(PolizCmd::MUL); break;
         case TokenType::OP_DIV:   poliz.emit(PolizCmd::DIV); break;
-        case TokenType::OP_MOD:   poliz.emit(PolizCmd::MOD); break;
         case TokenType::OP_LT:    poliz.emit(PolizCmd::LESS); break;
         case TokenType::OP_GT:    poliz.emit(PolizCmd::GREATER); break;
         case TokenType::OP_LE:    poliz.emit(PolizCmd::LE); break;
         case TokenType::OP_GE:    poliz.emit(PolizCmd::GE); break;
         case TokenType::OP_EQ:    poliz.emit(PolizCmd::EQ); break;
         case TokenType::OP_NE:    poliz.emit(PolizCmd::NE); break;
-        case TokenType::KW_AND:   poliz.emit(PolizCmd::AND); break;
-        case TokenType::KW_OR:    poliz.emit(PolizCmd::OR); break;
+        case TokenType::LEX_AND:   poliz.emit(PolizCmd::AND); break;
+        case TokenType::LEX_OR:    poliz.emit(PolizCmd::OR); break;
         default: break;
     }
 }
@@ -164,7 +163,7 @@ void Parser::generateBinaryOp(TokenType op) {
 //============================================================================
 
 void Parser::program() {
-    if (currentToken.type == TokenType::KW_PROGRAM) {
+    if (currentToken.type == TokenType::LEX_PROGRAM) {
         advance();
     } else {
         error("Ожидается 'program'");
@@ -185,9 +184,9 @@ void Parser::program() {
 //----------------------------------------------------------------------------
 
 void Parser::descriptions() {
-    while (currentToken.type == TokenType::KW_INT ||
-           currentToken.type == TokenType::KW_REAL ||
-           currentToken.type == TokenType::KW_STRING) {
+    while (currentToken.type == TokenType::LEX_INT ||
+           currentToken.type == TokenType::LEX_REAL ||
+           currentToken.type == TokenType::LEX_STRING) {
         description();
         expect(TokenType::SEP_SEMICOLON, "Ожидается ';' после описания");
     }
@@ -196,11 +195,11 @@ void Parser::descriptions() {
 void Parser::description() {
     DataType type;
     
-    if (match(TokenType::KW_INT)) {
+    if (match(TokenType::LEX_INT)) {
         type = DataType::INT;
-    } else if (match(TokenType::KW_REAL)) {
+    } else if (match(TokenType::LEX_REAL)) {
         type = DataType::REAL;
-    } else if (match(TokenType::KW_STRING)) {
+    } else if (match(TokenType::LEX_STRING)) {
         type = DataType::STRING;
     } else {
         error("Ожидается тип переменной (int, real, string)");
@@ -260,23 +259,23 @@ void Parser::variable(DataType type) {
 
 void Parser::operators() {
     while (currentToken.type != TokenType::END_OF_FILE &&
-           currentToken.type != TokenType::KW_PROGRAM) {
+           currentToken.type != TokenType::LEX_PROGRAM) {
         statement();
     }
 }
 
 void Parser::statement() {
-    if (currentToken.type == TokenType::KW_IF) {
+    if (currentToken.type == TokenType::LEX_IF) {
         ifStatement();
-    } else if (currentToken.type == TokenType::KW_WHILE) {
+    } else if (currentToken.type == TokenType::LEX_WHILE) {
         whileStatement();
-    } else if (currentToken.type == TokenType::KW_FOR) {
+    } else if (currentToken.type == TokenType::LEX_FOR) {
         forStatement();
-    } else if (currentToken.type == TokenType::KW_READ) {
+    } else if (currentToken.type == TokenType::LEX_READ) {
         readStatement();
-    } else if (currentToken.type == TokenType::KW_WRITE) {
+    } else if (currentToken.type == TokenType::LEX_WRITE) {
         writeStatement();
-    } else if (currentToken.type == TokenType::KW_GOTO) {
+    } else if (currentToken.type == TokenType::LEX_GOTO) {
         gotoStatement();
     } else if (currentToken.type == TokenType::SEP_LBRACE) {
         compoundStatement();
@@ -303,7 +302,7 @@ void Parser::statement() {
 //----------------------------------------------------------------------------
 
 void Parser::ifStatement() {
-    expect(TokenType::KW_IF, "Ожидается 'if'");
+    expect(TokenType::LEX_IF, "Ожидается 'if'");
     expect(TokenType::SEP_LPAREN, "Ожидается '(' после if");
     
     // Генерируем код условия
@@ -333,7 +332,7 @@ void Parser::ifStatement() {
 void Parser::whileStatement() {
     int loopStart = poliz.size();  // метка начала цикла
     
-    expect(TokenType::KW_WHILE, "Ожидается 'while'");
+    expect(TokenType::LEX_WHILE, "Ожидается 'while'");
     expect(TokenType::SEP_LPAREN, "Ожидается '(' после while");
     
     // Генерируем код условия
@@ -363,7 +362,7 @@ void Parser::whileStatement() {
 //----------------------------------------------------------------------------
 
 void Parser::forStatement() {
-    expect(TokenType::KW_FOR, "Ожидается 'for'");
+    expect(TokenType::LEX_FOR, "Ожидается 'for'");
     
     // Параметр цикла
     if (currentToken.type != TokenType::IDENTIFIER) {
@@ -395,7 +394,7 @@ void Parser::forStatement() {
     // Сохраняем E1 в параметр
     poliz.emit(PolizCmd::POP_VAR, paramName, paramAddr);
     
-    expect(TokenType::KW_STEP, "Ожидается 'step'");
+    expect(TokenType::LEX_STEP, "Ожидается 'step'");
     
     // Шаг E2
     DataType stepType = expression();
@@ -407,7 +406,7 @@ void Parser::forStatement() {
     // Для простоты сохраним в специальной временной переменной
     // В реальном компиляторе шаг вычисляется один раз и сохраняется
     
-    expect(TokenType::KW_UNTIL, "Ожидается 'until'");
+    expect(TokenType::LEX_UNTIL, "Ожидается 'until'");
     
     // Конечное значение E3
     DataType endType = expression();
@@ -415,7 +414,7 @@ void Parser::forStatement() {
         error("Конечное значение в for должно быть целочисленным");
     }
     
-    expect(TokenType::KW_DO, "Ожидается 'do'");
+    expect(TokenType::LEX_DO, "Ожидается 'do'");
     
     // Сохраняем шаг и конечное значение на стеке
     // (упрощённо: в реальном компиляторе они вычисляются один раз)
@@ -459,7 +458,7 @@ void Parser::forStatement() {
 //----------------------------------------------------------------------------
 
 void Parser::gotoStatement() {
-    expect(TokenType::KW_GOTO, "Ожидается 'goto'");
+    expect(TokenType::LEX_GOTO, "Ожидается 'goto'");
     
     if (currentToken.type != TokenType::IDENTIFIER) {
         error("Ожидается идентификатор метки после goto");
@@ -495,7 +494,7 @@ void Parser::gotoStatement() {
 //----------------------------------------------------------------------------
 
 void Parser::readStatement() {
-    expect(TokenType::KW_READ, "Ожидается 'read'");
+    expect(TokenType::LEX_READ, "Ожидается 'read'");
     expect(TokenType::SEP_LPAREN, "Ожидается '(' после read");
     
     if (currentToken.type != TokenType::IDENTIFIER) {
@@ -520,7 +519,7 @@ void Parser::readStatement() {
 //----------------------------------------------------------------------------
 
 void Parser::writeStatement() {
-    expect(TokenType::KW_WRITE, "Ожидается 'write'");
+    expect(TokenType::LEX_WRITE, "Ожидается 'write'");
     expect(TokenType::SEP_LPAREN, "Ожидается '(' после write");
     
     int exprCount = 0;
@@ -650,13 +649,13 @@ DataType Parser::assignmentExpression() {
 DataType Parser::logicalOrExpression() {
     DataType left = logicalAndExpression();
     
-    while (currentToken.type == TokenType::KW_OR) {
+    while (currentToken.type == TokenType::LEX_OR) {
         Token opToken = currentToken;
         advance();
         DataType right = logicalAndExpression();
         
-        checkBinaryOp(left, right, TokenType::KW_OR);
-        generateBinaryOp(TokenType::KW_OR);
+        checkBinaryOp(left, right, TokenType::LEX_OR);
+        generateBinaryOp(TokenType::LEX_OR);
         
         left = DataType::INT;  // результат логической операции — int
     }
@@ -667,13 +666,13 @@ DataType Parser::logicalOrExpression() {
 DataType Parser::logicalAndExpression() {
     DataType left = relationalExpression();
     
-    while (currentToken.type == TokenType::KW_AND) {
+    while (currentToken.type == TokenType::LEX_AND) {
         Token opToken = currentToken;
         advance();
         DataType right = relationalExpression();
         
-        checkBinaryOp(left, right, TokenType::KW_AND);
-        generateBinaryOp(TokenType::KW_AND);
+        checkBinaryOp(left, right, TokenType::LEX_AND);
+        generateBinaryOp(TokenType::LEX_AND);
         
         left = DataType::INT;  // результат логической операции — int
     }
@@ -735,8 +734,7 @@ DataType Parser::multiplicativeExpression() {
     DataType left = unaryExpression();
     
     while (currentToken.type == TokenType::OP_MUL ||
-           currentToken.type == TokenType::OP_DIV ||
-           currentToken.type == TokenType::OP_MOD) {
+           currentToken.type == TokenType::OP_DIV) {
         TokenType op = currentToken.type;
         advance();
         DataType right = unaryExpression();
@@ -749,11 +747,6 @@ DataType Parser::multiplicativeExpression() {
             left = DataType::REAL;
         } else {
             left = DataType::INT;
-        }
-        
-        // % требует int операндов
-        if (op == TokenType::OP_MOD && (left != DataType::INT || right != DataType::INT)) {
-            error("Операция % применима только к целым числам");
         }
     }
     
@@ -772,7 +765,7 @@ DataType Parser::unaryExpression() {
             error("Унарный минус не применим к данному типу");
             return DataType::UNDEFINED;
         }
-    } else if (currentToken.type == TokenType::KW_NOT) {
+    } else if (currentToken.type == TokenType::LEX_NOT) {
         advance();
         DataType operand = unaryExpression();
         

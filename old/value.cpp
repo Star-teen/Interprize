@@ -191,16 +191,6 @@ Value Value::operator/(const Value& other) const {
     throw runtime_error("Недопустимые типы для операции /");
 }
 
-Value Value::operator%(const Value& other) const {
-    if (type == DataType::INT && other.type == DataType::INT) {
-        if (other.intValue == 0) {
-            throw runtime_error("Остаток от деления на ноль");
-        }
-        return Value(intValue % other.intValue);
-    }
-    throw runtime_error("Операция % применима только к целым числам");
-}
-
 Value Value::operator-() const {
     if (type == DataType::INT) {
         return Value(-intValue);

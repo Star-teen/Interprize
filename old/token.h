@@ -1,45 +1,35 @@
-// token.h
 #ifndef TOKEN_H
 #define TOKEN_H
 
 #include <string>
 #include <iostream>
-#include <map>
-
-//============================================================================
-// Перечисление всех типов токенов модельного языка
-//============================================================================
+#include <vector>
 
 enum class TokenType {
-    // ----- Ключевые слова (служебные слова) -----
-    // Согласно общей части: program, int, string, if, while, read, write
-    // Вариантные части: for, step, until, do, goto, and, or, not
-    // (boolean не включён, так как выбран вариант IV.2 — тип real)
+    LEX_PROGRAM,     // program
+    LEX_INT,         // int
+    LEX_STRING,      // string
+    LEX_REAL,        // real
+    LEX_IF,          // if
+    LEX_ELSE,        // else
+    LEX_WHILE,       // while
+    LEX_READ,        // read
+    LEX_WRITE,       // write
+    LEX_FOR,         // for
+    LEX_STEP,        // step
+    LEX_UNTIL,       // until
+    LEX_DO,          // do
+    LEX_GOTO,        // goto
+    LEX_AND,         // and
+    LEX_OR,          // or
+    LEX_NOT,         // not
     
-    KW_PROGRAM,     // program
-    KW_INT,         // int
-    KW_STRING,      // string
-    KW_REAL,        // real (вариант IV.2)
-    KW_IF,          // if (вариант I.1)
-    KW_WHILE,       // while
-    KW_READ,        // read
-    KW_WRITE,       // write
-    KW_FOR,         // for (вариант II.3)
-    KW_STEP,        // step (вариант II.3)
-    KW_UNTIL,       // until (вариант II.3)
-    KW_DO,          // do (вариант II.3)
-    KW_GOTO,        // goto (вариант III.1)
-    KW_AND,         // and (логическое умножение)
-    KW_OR,          // or (логическое сложение)
-    KW_NOT,         // not (логическое отрицание)
-    
-    // ----- Операторы (одно- и двухсимвольные) -----
+    // Операторы
     OP_ASSIGN,      // =
     OP_PLUS,        // +
     OP_MINUS,       // -
     OP_MUL,         // *
     OP_DIV,         // /
-    OP_MOD,         // % (вариант V.1 — унарный минус, но % тоже полезен)
     OP_LT,          // <
     OP_GT,          // >
     OP_LE,          // <=
@@ -47,7 +37,7 @@ enum class TokenType {
     OP_EQ,          // ==
     OP_NE,          // !=
     
-    // ----- Разделители -----
+    // Разделители
     SEP_SEMICOLON,  // ;
     SEP_COMMA,      // ,
     SEP_LPAREN,     // (
@@ -56,48 +46,34 @@ enum class TokenType {
     SEP_RBRACE,     // }
     SEP_COLON,      // :
     
-    // ----- Прочие токены -----
+    // Иное
     IDENTIFIER,     // идентификатор (имя переменной, метки)
     INT_CONST,      // целочисленная константа
-    REAL_CONST,     // вещественная константа (вариант IV.2)
+    REAL_CONST,     // вещественная константа
     STRING_CONST,   // строковая константа
-    
-    // ----- Служебные токены -----
     END_OF_FILE,    // конец файла
     ERROR           // ошибочный токен
 };
 
-//============================================================================
 // Преобразование TokenType в строку (для отладки)
-//============================================================================
-
 std::string tokenTypeToString(TokenType type);
 
-//============================================================================
-// Класс токена — представляет одну лексему
-//============================================================================
-
+// Класс токена — одна лексема
 class Token {
 public:
-    // Основные поля
-    TokenType   type;       // тип токена (из перечисления выше)
+    TokenType   type;       // тип токена
     std::string lexeme;     // исходный текст токена (для отладки)
     int         line;       // номер строки в исходном файле
     int         column;     // номер колонки в строке
     
-    // Значения для разных типов токенов (используется одно из них)
     int         intValue;       // для INT_CONST
     double      realValue;      // для REAL_CONST
     std::string stringValue;    // для STRING_CONST и IDENTIFIER
-    
-    //========================================================================
-    // Конструкторы
-    //========================================================================
-    
+        
     // Конструктор по умолчанию — создаёт пустой токен с типом ERROR
     Token();
     
-    // Конструктор для простых токенов (без значения)
+    // Конструктор для простых токенов
     // Пример: Token(TokenType::SEP_SEMICOLON, ";", 5, 10)
     Token(TokenType t, const std::string& lex, int ln, int col);
     
@@ -112,11 +88,7 @@ public:
     
     // Конструктор для идентификатора
     static Token identifier(const std::string& name, int ln, int col);
-    
-    //========================================================================
-    // Методы доступа и проверки
-    //========================================================================
-    
+        
     // Проверка типа токена
     bool is(TokenType t) const { return type == t; }
     bool isOneOf(const std::vector<TokenType>& types) const;
@@ -133,20 +105,12 @@ public:
     // Проверка, является ли токен константой
     bool isConstant() const;
     
-    // Получение значения в виде строки (универсальный метод)
+    // Получение значения в виде строки
     std::string getValueAsString() const;
     
-    //========================================================================
     // Вывод и отладка
-    //========================================================================
-    
     std::string toString() const;
-    void print() const;
-    
-    //========================================================================
-    // Статические методы для работы со служебными словами
-    //========================================================================
-    
+        
     // Проверка, является ли строка служебным словом
     static bool isKeyword(const std::string& s);
     
@@ -157,13 +121,9 @@ public:
     static TokenType getOperatorType(const std::string& s);
     
 private:
-    // Вспомогательный метод для инициализации
+    // Инициализация (метод для конструкторов)
     void init(TokenType t, const std::string& lex, int ln, int col);
 };
-
-//============================================================================
-// Оператор вывода для Token (для удобного использования с cout)
-//============================================================================
 
 std::ostream& operator<<(std::ostream& os, const Token& token);
 

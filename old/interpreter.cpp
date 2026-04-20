@@ -277,14 +277,6 @@ void Interpreter::executeInstruction(const PolizInstruction& instr) {
             }
             break;
             
-        case PolizCmd::MOD:
-            {
-                Value right = pop();
-                Value left = pop();
-                push(left % right);
-            }
-            break;
-            
         case PolizCmd::NEG:
             {
                 Value operand = pop();
