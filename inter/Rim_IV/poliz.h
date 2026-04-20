@@ -29,14 +29,14 @@ enum class OpCode {
     NEQ,        // !=
 
     // Логика
-    AND,        // снять R,L → (L≠0 && R≠0) ? 1 : 0
-    OR,         // снять R,L → (L≠0 || R≠0) ? 1 : 0
-    NOT,        // снять v   → (v==0) ? 1 : 0
+    AND,        // снять R,L → (L != 0 && R != 0) ? 1 : 0
+    OR,         // снять R,L → (L != 0 || R != 0) ? 1 : 0
+    NOT,        // снять v   → (v == 0) ? 1 : 0
 
     // Переходы
-    JMP,        // безусловный переход к инструкции с индексом ival
-    JZ,         // снять со стека; если 0 → перейти к ival
-    JNZ,        // снять со стека; если НЕ 0 → перейти к ival
+    JMP,        // безусловный переход с индексом ival
+    JZ,         // снять со стека; если 0 перейти к ival
+    JNZ,        // снять со стека; если НЕ 0 перейти к ival
 
     READ,       // прочитать с cin в переменную sval
     WRITE,      // снять со стека, вывести в cout
@@ -46,8 +46,8 @@ enum class OpCode {
 
 struct PolizOp {
     OpCode      code;
-    long long   ival = 0;    // операнд для PUSH_INT и адресов JMP/JZ/JNZ
-    double      rval = 0.0;  // операнд для PUSH_REAL
-    std::string sval;        // операнд для PUSH_STR, LOAD, STORE, READ
+    long long   ival = 0;
+    double      rval = 0.0;
+    std::string sval;
 };
 #endif // POLIZ_H

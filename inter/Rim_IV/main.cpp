@@ -12,14 +12,13 @@ int main(int argc, char* argv[]) {
         // Читаем программу из файла переданного аргументом
         std::ifstream f(argv[1]);
         if (!f) {
-            std::cerr << "Ошибка: не удалось открыть файл '"
-                      << argv[1] << "'" << std::endl;
+            std::cerr << "Ошибка: не удалось открыть файл " << argv[1] << std::endl;
             return 1;
         }
         std::ostringstream ss; ss << f.rdbuf();
         src = ss.str();
     } else {
-        // Читаем со стандартного ввода (удобно для тестов через echo или pipe)
+        // Читаем со стандартного ввода 
         std::ostringstream ss; ss << std::cin.rdbuf();
         src = ss.str();
     }
@@ -30,7 +29,7 @@ int main(int argc, char* argv[]) {
         std::vector<Token> tokens = lexer.tokenize();
 
         // Фаза 2: синтаксический + семантический анализ + генерация ПОЛИЗ
-        SymTable             sym;
+        SymTable sym;
         std::vector<PolizOp> code;
         Parser parser(tokens, sym, code);
         parser.parse();
