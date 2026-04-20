@@ -1,86 +1,26 @@
 // interpreter.cpp
 #include "interpreter.h"
 #include <sstream>
+#include <stdexcept>
 #include <iomanip>
-#include <cmath>
 #include <algorithm>
 
 using namespace std;
 
 //============================================================================
-// Реализация StackValue
-//============================================================================
-
-StackValue::StackValue() 
-    : type(DataType::UNDEFINED), intValue(0), realValue(0.0) {}
-
-StackValue::StackValue(int v) 
-    : type(DataType::INT), intValue(v), realValue(static_cast<double>(v)) {}
-
-StackValue::StackValue(double v) 
-    : type(DataType::REAL), intValue(static_cast<int>(v)), realValue(v) {}
-
-StackValue::StackValue(const string& v) 
-    : type(DataType::STRING), intValue(0), realValue(0.0), stringValue(v) {}
-
-StackValue::StackValue(const StackValue& other)
-    : type(other.type), intValue(other.intValue), 
-      realValue(other.realValue), stringValue(other.stringValue) {}
-
-StackValue& StackValue::operator=(const StackValue& other) {
-    if (this != &other) {
-        type = other.type;
-        intValue = other.intValue;
-        realValue = other.realValue;
-        stringValue = other.stringValue;
-    }
-    return *this;
-}
-
-bool StackValue::toBool() const {
-    switch (type) {
-        case DataType::INT:
-            return intValue != 0;
-        case DataType::REAL:
-            return realValue != 0.0;
-        case DataType::STRING:
-            return !stringValue.empty();
-        default:
-            return false;
-    }
-}
-
-string StackValue::toString() const {
-    switch (type) {
-        case DataType::INT:
-            return to_string(intValue);
-        case DataType::REAL: {
-            ostringstream oss;
-            oss << fixed << setprecision(6) << realValue;
-            string s = oss.str();
-            // Убираем лишние нули в конце
-            while (s.length() > 1 && s.back() == '0') s.pop_back();
-            if (s.back() == '.') s.pop_back();
-            return s;
-        }
-        case DataType::STRING:
-            return stringValue;
-        default:
-            return "?";
-    }
-}
-
-void StackValue::print() const {
-    cout << toString();
-}
-
-//============================================================================
-// Реализация Interpreter
+// Конструктор
 //============================================================================
 
 Interpreter::Interpreter(const Poliz& p, SymbolTable& st)
-    : poliz(p), symTable(st), ip(0), running(false), 
-      debugMode(false), maxSteps(10000), currentStep(0) {
+    : poliz(p)
+    , symTable(st)
+    , ip(0)
+    , running(false)
+    , debugMode(false)
+    , maxSteps(10000)
+    , currentStep(0)
+    , singleStepMode(false)
+{
     setStandardIO();
 }
 
@@ -88,20 +28,29 @@ Interpreter::Interpreter(const Poliz& p, SymbolTable& st)
 // Работа со стеком
 //============================================================================
 
-void Interpreter::push(const StackValue& v) {
+void Interpreter::push(const Value& v) {
     stack.push_back(v);
+    
+    if (debugMode) {
+        cout << "  push: " << v.debugString() << endl;
+    }
 }
 
-StackValue Interpreter::pop() {
+Value Interpreter::pop() {
     if (stack.empty()) {
         throw runtime_error("Ошибка: стек пуст (попытка извлечь значение)");
     }
-    StackValue v = stack.back();
+    Value v = stack.back();
     stack.pop_back();
+    
+    if (debugMode) {
+        cout << "  pop: " << v.debugString() << endl;
+    }
+    
     return v;
 }
 
-StackValue Interpreter::peek() const {
+Value Interpreter::peek() const {
     if (stack.empty()) {
         throw runtime_error("Ошибка: стек пуст (попытка посмотреть вершину)");
     }
@@ -110,271 +59,62 @@ StackValue Interpreter::peek() const {
 
 void Interpreter::clearStack() {
     stack.clear();
+    if (debugMode) {
+        cout << "  стек очищен" << endl;
+    }
+}
+
+void Interpreter::printStack() const {
+    cout << "Стек (" << stack.size() << "): ";
+    for (size_t i = 0; i < stack.size(); ++i) {
+        if (i > 0) cout << ", ";
+        cout << stack[i].toString();
+    }
+    cout << endl;
 }
 
 //============================================================================
-// Проверка совместимости типов (Таблица №2)
+// Отладочные методы
 //============================================================================
 
-bool Interpreter::isBinaryOpCompatible(PolizCmd op, DataType left, DataType right) {
-    // Операции отношения: int/int, real/real, string/string, а также смешанные int/real
-    bool isRelOp = (op == PolizCmd::LESS || op == PolizCmd::GREATER ||
-                    op == PolizCmd::LE || op == PolizCmd::GE ||
-                    op == PolizCmd::EQ || op == PolizCmd::NE);
+void Interpreter::printState() const {
+    cout << "\n┌─────────────────────────────────────────┐" << endl;
+    cout << "│ Состояние виртуальной машины              │" << endl;
+    cout << "├─────────────────────────────────────────┤" << endl;
+    cout << "│ IP: " << setw(4) << ip << " / " << setw(4) << poliz.size() << "                    │" << endl;
+    cout << "│ Шаг: " << setw(4) << currentStep << "                              │" << endl;
+    cout << "├─────────────────────────────────────────┤" << endl;
     
-    // Логические операции: только int
-    bool isLogicalOp = (op == PolizCmd::AND || op == PolizCmd::OR);
-    
-    if (isLogicalOp) {
-        return (left == DataType::INT && right == DataType::INT);
-    }
-    
-    if (isRelOp) {
-        // int/int, real/real, int/real, real/int, string/string
-        if (left == DataType::STRING && right == DataType::STRING) return true;
-        if ((left == DataType::INT || left == DataType::REAL) &&
-            (right == DataType::INT || right == DataType::REAL)) return true;
-        return false;
-    }
-    
-    // Арифметические операции
-    if (op == PolizCmd::ADD || op == PolizCmd::SUB || 
-        op == PolizCmd::MUL || op == PolizCmd::DIV) {
-        // Конкатенация строк
-        if (op == PolizCmd::ADD && left == DataType::STRING && right == DataType::STRING) {
-            return true;
+    // Вывод стека
+    cout << "│ Стек: ";
+    if (stack.empty()) {
+        cout << "(пуст)";
+    } else {
+        for (size_t i = 0; i < stack.size() && i < 10; ++i) {
+            if (i > 0) cout << " ";
+            cout << stack[i].toString();
+            if (i < stack.size() - 1) cout << ",";
         }
-        // Числовые операции
-        if ((left == DataType::INT || left == DataType::REAL) &&
-            (right == DataType::INT || right == DataType::REAL)) {
-            return true;
-        }
-        return false;
+        if (stack.size() > 10) cout << "...";
     }
+    cout << string(max(0, 35 - (int)stack.size() * 5), ' ') << "│" << endl;
     
-    // Операция MOD (только int)
-    if (op == PolizCmd::MOD) {
-        return (left == DataType::INT && right == DataType::INT);
+    // Следующая инструкция
+    cout << "├─────────────────────────────────────────┤" << endl;
+    if (ip < poliz.size()) {
+        string instr = poliz[ip].toString();
+        cout << "│ next: " << instr;
+        cout << string(max(0, 35 - (int)instr.length()), ' ') << "│" << endl;
+    } else {
+        cout << "│ next: END                              │" << endl;
     }
-    
-    return false;
+    cout << "└─────────────────────────────────────────┘" << endl;
 }
 
-DataType Interpreter::getBinaryOpResultType(PolizCmd op, DataType left, DataType right) {
-    bool isRelOp = (op == PolizCmd::LESS || op == PolizCmd::GREATER ||
-                    op == PolizCmd::LE || op == PolizCmd::GE ||
-                    op == PolizCmd::EQ || op == PolizCmd::NE);
-    
-    bool isLogicalOp = (op == PolizCmd::AND || op == PolizCmd::OR);
-    
-    if (isRelOp || isLogicalOp) {
-        return DataType::INT;  // результат отношений и логики — int (0/1)
-    }
-    
-    // Конкатенация строк
-    if (op == PolizCmd::ADD && left == DataType::STRING && right == DataType::STRING) {
-        return DataType::STRING;
-    }
-    
-    // Арифметика: если хоть один операнд real, результат real
-    if ((left == DataType::REAL || right == DataType::REAL) &&
-        (op == PolizCmd::ADD || op == PolizCmd::SUB || 
-         op == PolizCmd::MUL || op == PolizCmd::DIV)) {
-        return DataType::REAL;
-    }
-    
-    return DataType::INT;
-}
-
-//============================================================================
-// Бинарные и унарные операции
-//============================================================================
-
-StackValue Interpreter::applyBinaryOp(PolizCmd op, const StackValue& left, const StackValue& right) {
-    if (!isBinaryOpCompatible(op, left.type, right.type)) {
-        ostringstream oss;
-        oss << "Несовместимые типы в операции: " 
-            << dataTypeToString(left.type) << " и " 
-            << dataTypeToString(right.type);
-        throw runtime_error(oss.str());
-    }
-    
-    // Операции отношения
-    switch (op) {
-        case PolizCmd::LESS:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue((left.stringValue < right.stringValue) ? 1 : 0);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue((left.intValue < right.intValue) ? 1 : 0);
-            if (left.type == DataType::REAL && right.type == DataType::REAL)
-                return StackValue((left.realValue < right.realValue) ? 1 : 0);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue((l < r) ? 1 : 0);
-            }
-            break;
-            
-        case PolizCmd::GREATER:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue((left.stringValue > right.stringValue) ? 1 : 0);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue((left.intValue > right.intValue) ? 1 : 0);
-            if (left.type == DataType::REAL && right.type == DataType::REAL)
-                return StackValue((left.realValue > right.realValue) ? 1 : 0);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue((l > r) ? 1 : 0);
-            }
-            break;
-            
-        case PolizCmd::LE:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue((left.stringValue <= right.stringValue) ? 1 : 0);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue((left.intValue <= right.intValue) ? 1 : 0);
-            if (left.type == DataType::REAL && right.type == DataType::REAL)
-                return StackValue((left.realValue <= right.realValue) ? 1 : 0);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue((l <= r) ? 1 : 0);
-            }
-            break;
-            
-        case PolizCmd::GE:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue((left.stringValue >= right.stringValue) ? 1 : 0);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue((left.intValue >= right.intValue) ? 1 : 0);
-            if (left.type == DataType::REAL && right.type == DataType::REAL)
-                return StackValue((left.realValue >= right.realValue) ? 1 : 0);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue((l >= r) ? 1 : 0);
-            }
-            break;
-            
-        case PolizCmd::EQ:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue((left.stringValue == right.stringValue) ? 1 : 0);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue((left.intValue == right.intValue) ? 1 : 0);
-            if (left.type == DataType::REAL && right.type == DataType::REAL)
-                return StackValue((left.realValue == right.realValue) ? 1 : 0);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue((l == r) ? 1 : 0);
-            }
-            break;
-            
-        case PolizCmd::NE:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue((left.stringValue != right.stringValue) ? 1 : 0);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue((left.intValue != right.intValue) ? 1 : 0);
-            if (left.type == DataType::REAL && right.type == DataType::REAL)
-                return StackValue((left.realValue != right.realValue) ? 1 : 0);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue((l != r) ? 1 : 0);
-            }
-            break;
-            
-        // Логические операции
-        case PolizCmd::AND:
-            return StackValue((left.toBool() && right.toBool()) ? 1 : 0);
-        case PolizCmd::OR:
-            return StackValue((left.toBool() || right.toBool()) ? 1 : 0);
-            
-        // Арифметические операции
-        case PolizCmd::ADD:
-            if (left.type == DataType::STRING && right.type == DataType::STRING)
-                return StackValue(left.stringValue + right.stringValue);
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue(left.intValue + right.intValue);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue(l + r);
-            }
-            break;
-            
-        case PolizCmd::SUB:
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue(left.intValue - right.intValue);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue(l - r);
-            }
-            break;
-            
-        case PolizCmd::MUL:
-            if (left.type == DataType::INT && right.type == DataType::INT)
-                return StackValue(left.intValue * right.intValue);
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                return StackValue(l * r);
-            }
-            break;
-            
-        case PolizCmd::DIV:
-            if (left.type == DataType::INT && right.type == DataType::INT) {
-                if (right.intValue == 0) throw runtime_error("Деление на ноль");
-                return StackValue(left.intValue / right.intValue);
-            }
-            if ((left.type == DataType::INT || left.type == DataType::REAL) &&
-                (right.type == DataType::INT || right.type == DataType::REAL)) {
-                double l = (left.type == DataType::INT) ? left.intValue : left.realValue;
-                double r = (right.type == DataType::INT) ? right.intValue : right.realValue;
-                if (r == 0.0) throw runtime_error("Деление на ноль");
-                return StackValue(l / r);
-            }
-            break;
-            
-        case PolizCmd::MOD:
-            if (left.type == DataType::INT && right.type == DataType::INT) {
-                if (right.intValue == 0) throw runtime_error("Остаток от деления на ноль");
-                return StackValue(left.intValue % right.intValue);
-            }
-            break;
-            
-        default:
-            break;
-    }
-    
-    throw runtime_error("Неподдерживаемая бинарная операция");
-}
-
-StackValue Interpreter::applyUnaryOp(PolizCmd op, const StackValue& operand) {
-    switch (op) {
-        case PolizCmd::NEG:
-            if (operand.type == DataType::INT)
-                return StackValue(-operand.intValue);
-            if (operand.type == DataType::REAL)
-                return StackValue(-operand.realValue);
-            throw runtime_error("Унарный минус не применим к данному типу");
-            
-        case PolizCmd::NOT:
-            return StackValue(operand.toBool() ? 0 : 1);
-            
-        default:
-            throw runtime_error("Неподдерживаемая унарная операция");
+void Interpreter::waitForUser() const {
+    if (singleStepMode) {
+        cout << "Нажмите Enter для продолжения..." << endl;
+        cin.get();
     }
 }
 
@@ -384,123 +124,272 @@ StackValue Interpreter::applyUnaryOp(PolizCmd op, const StackValue& operand) {
 
 void Interpreter::executeInstruction(const PolizInstruction& instr) {
     switch (instr.cmd) {
-        // ----- Константы -----
+        //-------------------------------------------------------------------
+        // Константы
+        //-------------------------------------------------------------------
         case PolizCmd::PUSH_INT:
-            push(StackValue(instr.intValue));
+            push(Value(instr.intValue));
             break;
             
         case PolizCmd::PUSH_REAL:
-            push(StackValue(instr.realValue));
+            push(Value(instr.realValue));
             break;
             
         case PolizCmd::PUSH_STRING:
-            push(StackValue(instr.strValue));
+            push(Value(instr.strValue));
             break;
             
-        // ----- Переменные -----
+        //-------------------------------------------------------------------
+        // Переменные
+        //-------------------------------------------------------------------
         case PolizCmd::PUSH_VAR:
             if (instr.address >= 0) {
                 DataType type = symTable.getTypeByAddress(instr.address);
-                if (type == DataType::INT) {
-                    push(StackValue(symTable.getIntValueByAddress(instr.address)));
-                } else if (type == DataType::REAL) {
-                    push(StackValue(symTable.getRealValueByAddress(instr.address)));
-                } else if (type == DataType::STRING) {
-                    push(StackValue(symTable.getStringValueByAddress(instr.address)));
-                } else {
-                    throw runtime_error("Переменная не инициализирована");
+                switch (type) {
+                    case DataType::INT:
+                        push(Value(symTable.getIntValueByAddress(instr.address)));
+                        break;
+                    case DataType::REAL:
+                        push(Value(symTable.getRealValueByAddress(instr.address)));
+                        break;
+                    case DataType::STRING:
+                        push(Value(symTable.getStringValueByAddress(instr.address)));
+                        break;
+                    default:
+                        throw runtime_error("Переменная по адресу " + 
+                                          to_string(instr.address) + " не инициализирована");
                 }
             } else {
-                // Поиск по имени
                 DataType type = symTable.getVariableType(instr.strValue);
-                if (type == DataType::INT) {
-                    push(StackValue(symTable.getIntValue(instr.strValue)));
-                } else if (type == DataType::REAL) {
-                    push(StackValue(symTable.getRealValue(instr.strValue)));
-                } else if (type == DataType::STRING) {
-                    push(StackValue(symTable.getStringValue(instr.strValue)));
-                } else {
-                    throw runtime_error("Переменная '" + instr.strValue + "' не найдена");
+                switch (type) {
+                    case DataType::INT:
+                        push(Value(symTable.getIntValue(instr.strValue)));
+                        break;
+                    case DataType::REAL:
+                        push(Value(symTable.getRealValue(instr.strValue)));
+                        break;
+                    case DataType::STRING:
+                        push(Value(symTable.getStringValue(instr.strValue)));
+                        break;
+                    default:
+                        throw runtime_error("Переменная '" + instr.strValue + 
+                                          "' не объявлена или не инициализирована");
                 }
             }
             break;
             
         case PolizCmd::POP_VAR:
             {
-                StackValue val = pop();
+                Value val = pop();
                 if (instr.address >= 0) {
                     DataType varType = symTable.getTypeByAddress(instr.address);
-                    if (varType == DataType::INT && val.type == DataType::INT) {
-                        symTable.setIntValueByAddress(instr.address, val.intValue);
-                    } else if (varType == DataType::REAL && 
-                               (val.type == DataType::INT || val.type == DataType::REAL)) {
-                        double v = (val.type == DataType::INT) ? val.intValue : val.realValue;
-                        symTable.setRealValueByAddress(instr.address, v);
-                    } else if (varType == DataType::STRING && val.type == DataType::STRING) {
-                        symTable.setStringValueByAddress(instr.address, val.stringValue);
-                    } else {
-                        throw runtime_error("Несоответствие типов при присваивании");
+                    switch (varType) {
+                        case DataType::INT:
+                            if (val.getType() == DataType::INT) {
+                                symTable.setIntValueByAddress(instr.address, val.asInt());
+                            } else if (val.getType() == DataType::REAL) {
+                                symTable.setIntValueByAddress(instr.address, 
+                                                              static_cast<int>(val.asReal()));
+                            } else {
+                                throw runtime_error("Несоответствие типов: int = " + 
+                                                  dataTypeToString(val.getType()));
+                            }
+                            break;
+                        case DataType::REAL:
+                            symTable.setRealValueByAddress(instr.address, val.asReal());
+                            break;
+                        case DataType::STRING:
+                            if (val.getType() == DataType::STRING) {
+                                symTable.setStringValueByAddress(instr.address, val.asString());
+                            } else {
+                                throw runtime_error("Несоответствие типов: string = " + 
+                                                  dataTypeToString(val.getType()));
+                            }
+                            break;
+                        default:
+                            throw runtime_error("Неизвестный тип переменной");
                     }
                 } else {
-                    // Поиск по имени
                     DataType varType = symTable.getVariableType(instr.strValue);
-                    if (varType == DataType::INT && val.type == DataType::INT) {
-                        symTable.setVariableValue(instr.strValue, val.intValue);
-                    } else if (varType == DataType::REAL && 
-                               (val.type == DataType::INT || val.type == DataType::REAL)) {
-                        double v = (val.type == DataType::INT) ? val.intValue : val.realValue;
-                        symTable.setVariableValue(instr.strValue, v);
-                    } else if (varType == DataType::STRING && val.type == DataType::STRING) {
-                        symTable.setVariableValue(instr.strValue, val.stringValue);
-                    } else {
-                        throw runtime_error("Несоответствие типов при присваивании");
+                    switch (varType) {
+                        case DataType::INT:
+                            if (val.getType() == DataType::INT) {
+                                symTable.setVariableValue(instr.strValue, val.asInt());
+                            } else if (val.getType() == DataType::REAL) {
+                                symTable.setVariableValue(instr.strValue, 
+                                                          static_cast<int>(val.asReal()));
+                            } else {
+                                throw runtime_error("Несоответствие типов: int = " + 
+                                                  dataTypeToString(val.getType()));
+                            }
+                            break;
+                        case DataType::REAL:
+                            symTable.setVariableValue(instr.strValue, val.asReal());
+                            break;
+                        case DataType::STRING:
+                            if (val.getType() == DataType::STRING) {
+                                symTable.setVariableValue(instr.strValue, val.asString());
+                            } else {
+                                throw runtime_error("Несоответствие типов: string = " + 
+                                                  dataTypeToString(val.getType()));
+                            }
+                            break;
+                        default:
+                            throw runtime_error("Переменная '" + instr.strValue + 
+                                              "' не объявлена");
                     }
                 }
             }
             break;
             
-        // ----- Бинарные операции -----
+        //-------------------------------------------------------------------
+        // Арифметические операции
+        //-------------------------------------------------------------------
         case PolizCmd::ADD:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left + right);
+            }
+            break;
+            
         case PolizCmd::SUB:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left - right);
+            }
+            break;
+            
         case PolizCmd::MUL:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left * right);
+            }
+            break;
+            
         case PolizCmd::DIV:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left / right);
+            }
+            break;
+            
         case PolizCmd::MOD:
-        case PolizCmd::LESS:
-        case PolizCmd::GREATER:
-        case PolizCmd::LE:
-        case PolizCmd::GE:
-        case PolizCmd::EQ:
-        case PolizCmd::NE:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left % right);
+            }
+            break;
+            
+        case PolizCmd::NEG:
+            {
+                Value operand = pop();
+                push(-operand);
+            }
+            break;
+            
+        //-------------------------------------------------------------------
+        // Логические операции (полное вычисление)
+        //-------------------------------------------------------------------
         case PolizCmd::AND:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left && right);
+            }
+            break;
+            
         case PolizCmd::OR:
             {
-                StackValue right = pop();
-                StackValue left = pop();
-                push(applyBinaryOp(instr.cmd, left, right));
+                Value right = pop();
+                Value left = pop();
+                push(left || right);
             }
             break;
             
-        // ----- Унарные операции -----
-        case PolizCmd::NEG:
         case PolizCmd::NOT:
             {
-                StackValue operand = pop();
-                push(applyUnaryOp(instr.cmd, operand));
+                Value operand = pop();
+                push(!operand);
             }
             break;
             
-        // ----- Управление -----
+        //-------------------------------------------------------------------
+        // Операции отношения
+        //-------------------------------------------------------------------
+        case PolizCmd::LESS:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left < right);
+            }
+            break;
+            
+        case PolizCmd::GREATER:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left > right);
+            }
+            break;
+            
+        case PolizCmd::LE:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left <= right);
+            }
+            break;
+            
+        case PolizCmd::GE:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left >= right);
+            }
+            break;
+            
+        case PolizCmd::EQ:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left == right);
+            }
+            break;
+            
+        case PolizCmd::NE:
+            {
+                Value right = pop();
+                Value left = pop();
+                push(left != right);
+            }
+            break;
+            
+        //-------------------------------------------------------------------
+        // Управление потоком
+        //-------------------------------------------------------------------
         case PolizCmd::LABEL:
-            // Ничего не делаем
+            // Ничего не делаем, метка нужна только для адресации
             break;
             
         case PolizCmd::GOTO:
+            if (debugMode) {
+                cout << "  безусловный переход на " << instr.intValue << endl;
+            }
             ip = instr.intValue;
             return;  // не увеличиваем ip
             
         case PolizCmd::GOTO_IF_FALSE:
             {
-                StackValue cond = pop();
+                Value cond = pop();
+                if (debugMode) {
+                    cout << "  условный переход (false): cond=" << cond.toBool() 
+                         << ", target=" << instr.intValue << endl;
+                }
                 if (!cond.toBool()) {
                     ip = instr.intValue;
                     return;
@@ -510,7 +399,11 @@ void Interpreter::executeInstruction(const PolizInstruction& instr) {
             
         case PolizCmd::GOTO_IF_TRUE:
             {
-                StackValue cond = pop();
+                Value cond = pop();
+                if (debugMode) {
+                    cout << "  условный переход (true): cond=" << cond.toBool() 
+                         << ", target=" << instr.intValue << endl;
+                }
                 if (cond.toBool()) {
                     ip = instr.intValue;
                     return;
@@ -518,33 +411,62 @@ void Interpreter::executeInstruction(const PolizInstruction& instr) {
             }
             break;
             
-        // ----- Ввод/вывод -----
+        //-------------------------------------------------------------------
+        // Ввод/вывод
+        //-------------------------------------------------------------------
         case PolizCmd::READ:
             {
                 string input;
                 if (inputCallback) {
                     input = inputCallback();
                 } else {
-                    getline(cin, input);
+                    if (!getline(cin, input)) {
+                        throw runtime_error("Ошибка чтения ввода");
+                    }
+                }
+                
+                // Удаляем возможный символ возврата каретки
+                if (!input.empty() && input.back() == '\r') {
+                    input.pop_back();
+                }
+                
+                if (debugMode) {
+                    cout << "  read: \"" << input << "\" -> ";
                 }
                 
                 if (instr.address >= 0) {
                     DataType type = symTable.getTypeByAddress(instr.address);
-                    if (type == DataType::INT) {
-                        symTable.setIntValueByAddress(instr.address, stoi(input));
-                    } else if (type == DataType::REAL) {
-                        symTable.setRealValueByAddress(instr.address, stod(input));
-                    } else {
-                        symTable.setStringValueByAddress(instr.address, input);
+                    switch (type) {
+                        case DataType::INT:
+                            symTable.setIntValueByAddress(instr.address, stoi(input));
+                            if (debugMode) cout << "int(" << stoi(input) << ")" << endl;
+                            break;
+                        case DataType::REAL:
+                            symTable.setRealValueByAddress(instr.address, stod(input));
+                            if (debugMode) cout << "real(" << stod(input) << ")" << endl;
+                            break;
+                        case DataType::STRING:
+                            symTable.setStringValueByAddress(instr.address, input);
+                            if (debugMode) cout << "string(\"" << input << "\")" << endl;
+                            break;
+                        default:
+                            throw runtime_error("Неизвестный тип для read");
                     }
                 } else {
                     DataType type = symTable.getVariableType(instr.strValue);
-                    if (type == DataType::INT) {
-                        symTable.setVariableValue(instr.strValue, stoi(input));
-                    } else if (type == DataType::REAL) {
-                        symTable.setVariableValue(instr.strValue, stod(input));
-                    } else {
-                        symTable.setVariableValue(instr.strValue, input);
+                    switch (type) {
+                        case DataType::INT:
+                            symTable.setVariableValue(instr.strValue, stoi(input));
+                            break;
+                        case DataType::REAL:
+                            symTable.setVariableValue(instr.strValue, stod(input));
+                            break;
+                        case DataType::STRING:
+                            symTable.setVariableValue(instr.strValue, input);
+                            break;
+                        default:
+                            throw runtime_error("Переменная '" + instr.strValue + 
+                                              "' не объявлена для read");
                     }
                 }
             }
@@ -552,8 +474,11 @@ void Interpreter::executeInstruction(const PolizInstruction& instr) {
             
         case PolizCmd::WRITE:
             {
-                StackValue val = pop();
+                Value val = pop();
                 string output = val.toString();
+                if (debugMode) {
+                    cout << "  write: " << output << endl;
+                }
                 if (outputCallback) {
                     outputCallback(output);
                 } else {
@@ -562,47 +487,37 @@ void Interpreter::executeInstruction(const PolizInstruction& instr) {
             }
             break;
             
+        //-------------------------------------------------------------------
+        // Завершение
+        //-------------------------------------------------------------------
         case PolizCmd::HALT:
+            if (debugMode) {
+                cout << "  HALT: выполнение завершено" << endl;
+            }
             running = false;
             break;
             
         case PolizCmd::NOP:
-            // Ничего не делаем
+            if (debugMode) {
+                cout << "  NOP" << endl;
+            }
             break;
             
         default:
-            throw runtime_error("Неизвестная команда ПОЛИЗа");
+            throw runtime_error("Неизвестная команда ПОЛИЗа: " + 
+                              to_string(static_cast<int>(instr.cmd)));
     }
     
     ip++;
 }
 
 //============================================================================
-// Отладка
-//============================================================================
-
-void Interpreter::printState() const {
-    cout << "\n=== Состояние ВМ ===" << endl;
-    cout << "IP: " << ip << " / " << poliz.size() << endl;
-    cout << "Стек (" << stack.size() << "): ";
-    for (size_t i = 0; i < stack.size(); i++) {
-        if (i > 0) cout << ", ";
-        cout << stack[i].toString();
-    }
-    cout << endl;
-    
-    if (ip < poliz.size()) {
-        cout << "Следующая инструкция: " << poliz[ip].toString() << endl;
-    }
-    cout << "===================" << endl;
-}
-
-//============================================================================
-// Управление выполнением
+// Пошаговое выполнение
 //============================================================================
 
 bool Interpreter::step() {
     if (!running) return false;
+    
     if (ip >= poliz.size()) {
         running = false;
         return false;
@@ -617,27 +532,35 @@ bool Interpreter::step() {
         currentStep++;
         
         if (maxSteps > 0 && currentStep > maxSteps) {
-            throw runtime_error("Превышено максимальное количество шагов (возможно зацикливание)");
+            throw runtime_error("Превышено максимальное количество шагов (" + 
+                              to_string(maxSteps) + "). Возможно зацикливание.");
+        }
+        
+        if (debugMode && singleStepMode) {
+            waitForUser();
         }
         
         return running;
     } catch (const exception& e) {
-        cerr << "\nОшибка выполнения на шаге " << currentStep << ": " << e.what() << endl;
-        if (debugMode) {
-            cerr << "IP = " << ip << ", инструкция: " << poliz[ip].toString() << endl;
-        }
-        running = false;
-        throw;
+        stringstream ss;
+        ss << "\nОшибка выполнения на шаге " << currentStep << " (IP=" << ip << "): " << e.what();
+        throw runtime_error(ss.str());
     }
 }
 
+//============================================================================
+// Запуск интерпретации
+//============================================================================
+
 void Interpreter::run(istream& input) {
-    // Настройка ввода/вывода
+    // Временно заменяем колбэк ввода, если не установлен пользовательский
+    function<string()> oldInputCallback = inputCallback;
     if (!inputCallback) {
-        // Временная установка для стандартного ввода
         inputCallback = [&input]() {
             string line;
-            getline(input, line);
+            if (!getline(input, line)) {
+                return string("");
+            }
             return line;
         };
     }
@@ -646,27 +569,77 @@ void Interpreter::run(istream& input) {
     running = true;
     currentStep = 0;
     
-    while (running && ip < poliz.size()) {
-        if (!step()) break;
+    if (debugMode) {
+        cout << "\n=== НАЧАЛО ВЫПОЛНЕНИЯ ===" << endl;
+        if (singleStepMode) {
+            cout << "Режим пошагового выполнения. Нажимайте Enter для продолжения." << endl;
+        }
+        printState();
+        if (singleStepMode) waitForUser();
     }
     
-    if (debugMode && !running) {
-        cout << "\n=== Выполнение завершено ===" << endl;
+    try {
+        while (running && ip < poliz.size()) {
+            if (!step()) break;
+        }
+        
+        if (debugMode) {
+            cout << "\n=== ВЫПОЛНЕНИЕ ЗАВЕРШЕНО ===" << endl;
+            cout << "Всего шагов: " << currentStep << endl;
+            if (!stack.empty()) {
+                cout << "Остаток стека: ";
+                printStack();
+            }
+        }
+    } catch (const exception& e) {
+        // Восстанавливаем старый колбэк перед выбросом исключения
+        if (!oldInputCallback) {
+            inputCallback = nullptr;
+        }
+        throw;
+    }
+    
+    // Восстанавливаем старый колбэк
+    if (!oldInputCallback) {
+        inputCallback = nullptr;
     }
 }
+
+//============================================================================
+// Сброс состояния
+//============================================================================
 
 void Interpreter::reset() {
     clearStack();
     ip = 0;
     running = false;
     currentStep = 0;
+    
+    if (debugMode) {
+        cout << "Интерпретатор сброшен" << endl;
+    }
 }
 
+//============================================================================
+// Установка стандартного ввода/вывода
+//============================================================================
+
 void Interpreter::setStandardIO() {
-    outputCallback = [](const string& s) { cout << s; };
-    inputCallback = []() { 
+    outputCallback = [](const string& s) {
+        cout << s;
+    };
+    inputCallback = []() -> string {
         string line;
-        getline(cin, line);
+        if (!getline(cin, line)) {
+            return "";
+        }
         return line;
     };
 }
+
+//============================================================================
+// Дополнительные методы для отладки (опционально)
+//============================================================================
+
+// Метод для просмотра значения переменной по имени (для отладки)
+// Можно добавить в класс при необходимости

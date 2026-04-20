@@ -391,3 +391,36 @@ void SymbolTable::reset() {
     pendingVariables.clear();
     nextVariableAddress = 0;
 }
+
+// Добавить в symbol_table.cpp
+
+void SymbolTable::setIntValueByAddress(int address, int value) {
+    if (address >= 0 && address < (int)variablesByAddress.size()) {
+        VariableSymbol* sym = variablesByAddress[address];
+        if (sym && sym->type == DataType::INT) {
+            sym->setValue(value);
+        } else if (sym && sym->type == DataType::REAL) {
+            sym->setValue(static_cast<double>(value));
+        }
+    }
+}
+
+void SymbolTable::setRealValueByAddress(int address, double value) {
+    if (address >= 0 && address < (int)variablesByAddress.size()) {
+        VariableSymbol* sym = variablesByAddress[address];
+        if (sym && sym->type == DataType::REAL) {
+            sym->setValue(value);
+        } else if (sym && sym->type == DataType::INT) {
+            sym->setValue(static_cast<int>(value));
+        }
+    }
+}
+
+void SymbolTable::setStringValueByAddress(int address, const string& value) {
+    if (address >= 0 && address < (int)variablesByAddress.size()) {
+        VariableSymbol* sym = variablesByAddress[address];
+        if (sym && sym->type == DataType::STRING) {
+            sym->setValue(value);
+        }
+    }
+}

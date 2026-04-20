@@ -4,6 +4,7 @@
 #include <set>
 #include <sstream>
 #include <iomanip>
+#include <vector>
 
 using namespace std;
 

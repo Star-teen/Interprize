@@ -206,6 +206,19 @@ public:
     
     // Получение всех меток (для отладки)
     std::vector<LabelSymbol> getAllLabels() const;
+
+    // Добавить в класс SymbolTable (после существующих методов)
+
+    // Установка значения по адресу
+    void setIntValueByAddress(int address, int value);
+    void setRealValueByAddress(int address, double value);
+    void setStringValueByAddress(int address, const std::string& value);
+
+    // Получение значения по адресу (уже есть, но проверим)
+    int getIntValueByAddress(int address) const;
+    double getRealValueByAddress(int address) const;
+    std::string getStringValueByAddress(int address) const;
+    DataType getTypeByAddress(int address) const;
     
     //========================================================================
     // Вывод и отладка
