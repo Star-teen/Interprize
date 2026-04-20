@@ -1,4 +1,5 @@
-#pragma once
+#ifndef LEXER_H
+#define LEXER_H
 // ============================================================
 // lexer.h — лексический анализатор (Лексер)
 //
@@ -83,10 +84,10 @@ class Lexer {
             s += advance();   // добавляем '.'
             while (pos < src.size() && std::isdigit((unsigned char)cur()))
                 s += advance();
-            return Token(TT::REAL_LIT, s, L);
+            return Token(TT::REAL_L, s, L);
         }
 
-        return Token(TT::INT_LIT, s, L);
+        return Token(TT::INT_L, s, L);
     }
 
     // Прочитать строку в кавычках "..."
@@ -102,7 +103,7 @@ class Lexer {
         if (cur() != '"')
             throw std::runtime_error("Строка не закрыта (достигнут конец файла)");
         advance();   // пропускаем закрывающую "
-        return Token(TT::STR_LIT, s, L);
+        return Token(TT::STR_L, s, L);
     }
 
     // Прочитать идентификатор или ключевое слово
@@ -113,23 +114,23 @@ class Lexer {
             s += advance();
 
         // Сравниваем с таблицей ключевых слов
-        if (s == "program") return Token(TT::KW_PROGRAM, s, L);
-        if (s == "int")     return Token(TT::KW_INT,     s, L);
-        if (s == "string")  return Token(TT::KW_STRING,  s, L);
-        if (s == "real")    return Token(TT::KW_REAL,     s, L);
-        if (s == "if")      return Token(TT::KW_IF,       s, L);
-        if (s == "else")    return Token(TT::KW_ELSE,     s, L);
-        if (s == "while")   return Token(TT::KW_WHILE,    s, L);
-        if (s == "for")     return Token(TT::KW_FOR,      s, L);
-        if (s == "step")    return Token(TT::KW_STEP,     s, L);
-        if (s == "until")   return Token(TT::KW_UNTIL,    s, L);
-        if (s == "do")      return Token(TT::KW_DO,       s, L);
-        if (s == "goto")    return Token(TT::KW_GOTO,     s, L);
-        if (s == "read")    return Token(TT::KW_READ,     s, L);
-        if (s == "write")   return Token(TT::KW_WRITE,    s, L);
-        if (s == "and")     return Token(TT::KW_AND,      s, L);
-        if (s == "or")      return Token(TT::KW_OR,       s, L);
-        if (s == "not")     return Token(TT::KW_NOT,      s, L);
+        if (s == "program") return Token(TT::LEX_PROGRAM, s, L);
+        if (s == "int")     return Token(TT::LEX_INT,     s, L);
+        if (s == "string")  return Token(TT::LEX_STRING,  s, L);
+        if (s == "real")    return Token(TT::LEX_REAL,     s, L);
+        if (s == "if")      return Token(TT::LEX_IF,       s, L);
+        if (s == "else")    return Token(TT::LEX_ELSE,     s, L);
+        if (s == "while")   return Token(TT::LEX_WHILE,    s, L);
+        if (s == "for")     return Token(TT::LEX_FOR,      s, L);
+        if (s == "step")    return Token(TT::LEX_STEP,     s, L);
+        if (s == "until")   return Token(TT::LEX_UNTIL,    s, L);
+        if (s == "do")      return Token(TT::LEX_DO,       s, L);
+        if (s == "goto")    return Token(TT::LEX_GOTO,     s, L);
+        if (s == "read")    return Token(TT::LEX_READ,     s, L);
+        if (s == "write")   return Token(TT::LEX_WRITE,    s, L);
+        if (s == "and")     return Token(TT::LEX_AND,      s, L);
+        if (s == "or")      return Token(TT::LEX_OR,       s, L);
+        if (s == "not")     return Token(TT::LEX_NOT,      s, L);
 
         // Не ключевое слово → имя переменной или метки
         return Token(TT::ID, s, L);
@@ -191,7 +192,6 @@ public:
                 case '-': result.push_back(Token(TT::MINUS,     "-", L)); break;
                 case '*': result.push_back(Token(TT::STAR,      "*", L)); break;
                 case '/': result.push_back(Token(TT::SLASH,     "/", L)); break;
-                case '%': result.push_back(Token(TT::PERCENT,   "%", L)); break;
                 case '<': result.push_back(Token(TT::LT,        "<", L)); break;
                 case '>': result.push_back(Token(TT::GT,        ">", L)); break;
                 case '=': result.push_back(Token(TT::ASSIGN,    "=", L)); break;
@@ -212,3 +212,4 @@ public:
         return result;
     }
 };
+#endif // LEXER_H

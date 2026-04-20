@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PARSER_H
+#define PARSER_H
 // ============================================================
 // parser.h — синтаксический анализ + генерация ПОЛИЗ
 //
@@ -108,10 +109,10 @@ class Parser {
             case TT::COLON:     return "':'";
             case TT::COMMA:     return "','";
             case TT::ID:        return "идентификатор";
-            case TT::KW_STEP:   return "'step'";
-            case TT::KW_UNTIL:  return "'until'";
-            case TT::KW_DO:     return "'do'";
-            case TT::KW_WHILE:  return "'while'";
+            case TT::LEX_STEP:   return "'step'";
+            case TT::LEX_UNTIL:  return "'until'";
+            case TT::LEX_DO:     return "'do'";
+            case TT::LEX_WHILE:  return "'while'";
             default:            return "токен";
         }
     }
@@ -134,9 +135,9 @@ class Parser {
     // ---- Разбор типов и констант ----
 
     VType parseType() {
-        if (tryEat(TT::KW_INT))    return VType::INT;
-        if (tryEat(TT::KW_STRING)) return VType::STRING;
-        if (tryEat(TT::KW_REAL))   return VType::REAL;
+        if (tryEat(TT::LEX_INT))    return VType::INT;
+        if (tryEat(TT::LEX_STRING)) return VType::STRING;
+        if (tryEat(TT::LEX_REAL))   return VType::REAL;
         throw std::runtime_error(
             "Строка " + std::to_string(cur().line) +
             ": ожидался тип (int / string / real)");
@@ -147,18 +148,18 @@ class Parser {
         if (check(TT::MINUS))     { pos++; neg = true; }
         else if (check(TT::PLUS)) { pos++; }
 
-        if (check(TT::INT_LIT)) {
-            long long v = std::stoll(eat(TT::INT_LIT).val) * (neg ? -1 : 1);
+        if (check(TT::INT_L)) {
+            long long v = std::stoll(eat(TT::INT_L).val) * (neg ? -1 : 1);
             if (expectedType == VType::REAL) return static_cast<double>(v);
             return v;
         }
-        if (check(TT::REAL_LIT)) {
-            double v = std::stod(eat(TT::REAL_LIT).val) * (neg ? -1.0 : 1.0);
+        if (check(TT::REAL_L)) {
+            double v = std::stod(eat(TT::REAL_L).val) * (neg ? -1.0 : 1.0);
             return v;
         }
-        if (check(TT::STR_LIT)) {
+        if (check(TT::STR_L)) {
             if (neg) throw std::runtime_error("Унарный минус неприменим к строке");
-            return eat(TT::STR_LIT).val;
+            return eat(TT::STR_L).val;
         }
         throw std::runtime_error(
             "Строка " + std::to_string(cur().line) + ": ожидалась константа");
@@ -214,7 +215,7 @@ class Parser {
     //   [левый] [правый] OR
     void parseOr() {
         parseAnd();
-        while (check(TT::KW_OR)) {
+        while (check(TT::LEX_OR)) {
             pos++;
             parseAnd();          // правый операнд ВСЕГДА вычисляется
             emit({ OpCode::OR });
@@ -225,7 +226,7 @@ class Parser {
     //   [левый] [правый] AND
     void parseAnd() {
         parseRel();
-        while (check(TT::KW_AND)) {
+        while (check(TT::LEX_AND)) {
             pos++;
             parseRel();          // правый операнд ВСЕГДА вычисляется
             emit({ OpCode::AND });
@@ -264,11 +265,10 @@ class Parser {
     // Умножение, деление, остаток: * / %
     void parseMul() {
         parseUnary();
-        while (check(TT::STAR) || check(TT::SLASH) || check(TT::PERCENT)) {
+        while (check(TT::STAR) || check(TT::SLASH)) {
             OpCode op;
             if      (check(TT::STAR))    op = OpCode::MUL;
-            else if (check(TT::SLASH))   op = OpCode::DIV;
-            else                          op = OpCode::MOD;
+            else                         op = OpCode::DIV;
             pos++;
             parseUnary();
             emit({ op });
@@ -277,7 +277,7 @@ class Parser {
 
     // Унарные операторы: not и - (унарный минус, вариант V.1)
     void parseUnary() {
-        if (tryEat(TT::KW_NOT)) {
+        if (tryEat(TT::LEX_NOT)) {
             parseUnary();
             emit({ OpCode::NOT });
         } else if (check(TT::MINUS)) {
@@ -291,12 +291,12 @@ class Parser {
 
     // Первичные: литерал, переменная, (выражение)
     void parsePrimary() {
-        if (check(TT::INT_LIT)) {
-            emit({ OpCode::PUSH_INT, std::stoll(eat(TT::INT_LIT).val) });
-        } else if (check(TT::REAL_LIT)) {
-            emit({ OpCode::PUSH_REAL, 0, std::stod(eat(TT::REAL_LIT).val) });
-        } else if (check(TT::STR_LIT)) {
-            emit({ OpCode::PUSH_STR, 0, 0.0, eat(TT::STR_LIT).val });
+        if (check(TT::INT_L)) {
+            emit({ OpCode::PUSH_INT, std::stoll(eat(TT::INT_L).val) });
+        } else if (check(TT::REAL_L)) {
+            emit({ OpCode::PUSH_REAL, 0, std::stod(eat(TT::REAL_L).val) });
+        } else if (check(TT::STR_L)) {
+            emit({ OpCode::PUSH_STR, 0, 0.0, eat(TT::STR_L).val });
         } else if (check(TT::ID)) {
             std::string name = eat(TT::ID).val;
             sym.get(name);   // проверяем что переменная объявлена
@@ -331,7 +331,7 @@ class Parser {
         // Два случая:
         //   1. Метка уже объявлена (backward goto) → emit JMP с готовым адресом
         //   2. Метка ещё не встречена (forward goto) → emit JMP 0, запомнить для патчинга
-        if (tryEat(TT::KW_GOTO)) {
+        if (tryEat(TT::LEX_GOTO)) {
             std::string labelName = eat(TT::ID).val;
             eat(TT::SEMICOLON);
             if (labels.count(labelName)) {
@@ -356,7 +356,7 @@ class Parser {
         //   метка_else:
         //   [тело else]       (если есть)
         //   метка_end:
-        if (tryEat(TT::KW_IF)) {
+        if (tryEat(TT::LEX_IF)) {
             eat(TT::LPAREN);
             parseExpr();
             eat(TT::RPAREN);
@@ -365,7 +365,7 @@ class Parser {
 
             parseStmt();   // тело if
 
-            if (tryEat(TT::KW_ELSE)) {
+            if (tryEat(TT::LEX_ELSE)) {
                 int jmpIdx = emit({ OpCode::JMP, 0 });
                 patch(jzIdx, here());     // JZ → начало else
                 parseStmt();              // тело else
@@ -396,7 +396,7 @@ class Parser {
         //   LOAD I; LOAD __step_N; ADD; STORE I; POP
         //   JMP→check
         //  end:
-        if (tryEat(TT::KW_FOR)) {
+        if (tryEat(TT::LEX_FOR)) {
             int n = forCounter++;
             std::string stepVar  = "__step_"  + std::to_string(n);
             std::string limitVar = "__limit_" + std::to_string(n);
@@ -415,23 +415,23 @@ class Parser {
             emit({ OpCode::STORE, 0, 0.0, iName });
             emit({ OpCode::POP });
 
-            eat(TT::KW_STEP);
+            eat(TT::LEX_STEP);
 
             // E2 → __step_N (объявляем скрытую переменную)
-            sym.declareHidden(stepVar, VType::INT);
+            sym.declareIter(stepVar, VType::INT);
             parseExpr();
             emit({ OpCode::STORE, 0, 0.0, stepVar });
             emit({ OpCode::POP });
 
-            eat(TT::KW_UNTIL);
+            eat(TT::LEX_UNTIL);
 
             // E3 → __limit_N
-            sym.declareHidden(limitVar, VType::INT);
+            sym.declareIter(limitVar, VType::INT);
             parseExpr();
             emit({ OpCode::STORE, 0, 0.0, limitVar });
             emit({ OpCode::POP });
 
-            eat(TT::KW_DO);
+            eat(TT::LEX_DO);
 
             // Начало проверки условия (сюда прыгаем назад)
             int checkAddr = here();
@@ -462,7 +462,7 @@ class Parser {
 
         // --- while ( выражение ) оператор ---
         // (входит в общую часть ТЗ)
-        if (tryEat(TT::KW_WHILE)) {
+        if (tryEat(TT::LEX_WHILE)) {
             int loopStart = here();
             eat(TT::LPAREN);
             parseExpr();
@@ -475,7 +475,7 @@ class Parser {
         }
 
         // --- read ( идентификатор ) ; ---
-        if (tryEat(TT::KW_READ)) {
+        if (tryEat(TT::LEX_READ)) {
             eat(TT::LPAREN);
             std::string name = eat(TT::ID).val;
             sym.get(name);
@@ -486,7 +486,7 @@ class Parser {
         }
 
         // --- write ( выражение { , выражение } ) ; ---
-        if (tryEat(TT::KW_WRITE)) {
+        if (tryEat(TT::LEX_WRITE)) {
             eat(TT::LPAREN);
             parseExpr();
             emit({ OpCode::WRITE });
@@ -519,11 +519,11 @@ public:
 
     // 〈программа〉 → program { 〈описания〉 〈операторы〉 }
     void parse() {
-        eat(TT::KW_PROGRAM);
+        eat(TT::LEX_PROGRAM);
         eat(TT::LBRACE);
 
         // Сначала все описания переменных
-        while (check(TT::KW_INT) || check(TT::KW_STRING) || check(TT::KW_REAL))
+        while (check(TT::LEX_INT) || check(TT::LEX_STRING) || check(TT::LEX_REAL))
             parseDecl();
 
         // Потом операторы
@@ -539,3 +539,4 @@ public:
         }
     }
 };
+#endif // PARSER_H

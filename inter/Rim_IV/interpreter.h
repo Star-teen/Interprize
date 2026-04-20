@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INTERPRETER_H
+#define INTERPRETER_H
 // ============================================================
 // interpreter.h — стековая виртуальная машина
 //
@@ -85,9 +86,6 @@ class Interpreter {
             case OpCode::DIV:
                 if (r == 0) throw std::runtime_error("Деление на ноль");
                 return l / r;
-            case OpCode::MOD:
-                if (r == 0) throw std::runtime_error("Деление на ноль (остаток)");
-                return l % r;
             default:
                 throw std::runtime_error("Неизвестная арифметика");
         }
@@ -160,11 +158,6 @@ public:
                 case OpCode::SUB:
                 case OpCode::MUL:
                 case OpCode::DIV:
-                case OpCode::MOD: {
-                    Val R = pop(); Val L = pop();
-                    push(arith(L, R, op.code));
-                    break;
-                }
 
                 case OpCode::NEG: {
                     Val v = pop();
@@ -244,3 +237,4 @@ public:
         std::cout << std::endl;
     }
 };
+#endif // INTERPRETER_H

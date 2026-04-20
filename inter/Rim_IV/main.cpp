@@ -1,15 +1,3 @@
-// ============================================================
-// main.cpp — точка входа интерпретатора
-//
-// Связывает все фазы:
-//   Фаза 1: Lexer        → vector<Token>
-//   Фаза 2: Parser       → vector<PolizOp> + SymTable (заполненная)
-//   Фаза 3: Interpreter  → выполнение программы
-//
-// Сборка:  g++ -std=c++17 -Wall -o interp main.cpp
-// Запуск:  ./interp program.ml
-//          ./interp program.ml < input.txt
-// ============================================================
 #include "lexer.h"
 #include "parser.h"
 #include "interpreter.h"
