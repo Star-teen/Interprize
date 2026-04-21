@@ -18,7 +18,7 @@ class Lexer {
     char nextChar() {return (pos + 1) < prog_text.size() ? prog_text[pos + 1] : '\0';}
 
     // прочитать и перейти дальше
-    char advance() {
+    char step_by() {
         char c = prog_text[pos++];
         if (c == '\n') ln++;
         return c;
@@ -27,18 +27,18 @@ class Lexer {
     // Пропустить все пробельные символы (пробел, \n, \t, \r)
     void skipSpace() {
         while (pos < prog_text.size() && std::isspace((unsigned char)cur()))
-            advance();
+            step_by();
     }
 
     // Пропустить комментарий /* ... */
     void skipComment() {
-        advance(); advance();   // съедаем '/' и '*'
+        step_by(); step_by();   // съедаем '/' и '*'
         while (pos + 1 < prog_text.size()) {
             if (cur() == '*' && nextChar() == '/') {
-                advance(); advance();   // съедаем '*' и '/'
+                step_by(); step_by();   // съедаем '*' и '/'
                 return;
             }
-            advance();
+            step_by();
         }
         throw std::runtime_error("Незакрытый комментарий /* без */");
     }
@@ -47,13 +47,13 @@ class Lexer {
     Token readNumber(int L) {
         std::string s;
         while (pos < prog_text.size() && std::isdigit((unsigned char)cur()))
-            s += advance();
+            s += step_by();
 
         // Если после цифр стоит точка и ещё цифра → это REAL
         if (cur() == '.' && std::isdigit((unsigned char)nextChar())) {
-            s += advance();   // добавляем '.'
+            s += step_by();   // добавляем '.'
             while (pos < prog_text.size() && std::isdigit((unsigned char)cur()))
-                s += advance();
+                s += step_by();
             return Token(TT::REAL_L, s, L);
         }
 
@@ -62,11 +62,11 @@ class Lexer {
 
     // Прочитать строку в кавычках "..."
     Token readString(int L) {
-        advance();   // пропускаем открывающую "
+        step_by();   // пропускаем открывающую "
         std::string s;
-        while (pos < prog_text.size() && cur() != '"') s += advance();
+        while (pos < prog_text.size() && cur() != '"') s += step_by();
         if (cur() != '"') throw std::runtime_error("Строка не закрыта (достигнут конец файла)");
-        advance();   // пропускаем закрывающую "
+        step_by();   // пропускаем закрывающую "
         return Token(TT::STR_L, s, L);
     }
 
@@ -74,7 +74,7 @@ class Lexer {
     Token readIdentOrKeyword(int L) {
         std::string s;
         while (pos < prog_text.size() && (std::isalnum((unsigned char)cur()) || cur() == '_'))
-            s += advance();
+            s += step_by();
 
         // Сравниваем с таблицей ключевых слов
         if (s == "program") return Token(TT::LEX_PROGRAM, s, L);
@@ -143,13 +143,13 @@ public:
             }
 
             // Двухсимвольные операторы (проверяем пару символов)
-            if (c=='<' && nextChar()=='=') { advance(); advance(); result.push_back(Token(TT::LE, "<=", L)); continue; }
-            if (c=='>' && nextChar()=='=') { advance(); advance(); result.push_back(Token(TT::GE, ">=", L)); continue; }
-            if (c=='=' && nextChar()=='=') { advance(); advance(); result.push_back(Token(TT::EQ, "==", L)); continue; }
-            if (c=='!' && nextChar()=='=') { advance(); advance(); result.push_back(Token(TT::NEQ, "!=", L)); continue; }
+            if (c=='<' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::LE, "<=", L)); continue; }
+            if (c=='>' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::GE, ">=", L)); continue; }
+            if (c=='=' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::EQ, "==", L)); continue; }
+            if (c=='!' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::NEQ, "!=", L)); continue; }
 
             // Односимвольные операторы
-            advance();
+            step_by();
             switch (c) {
                 case '+': result.push_back(Token(TT::PLUS, "+", L)); break;
                 case '-': result.push_back(Token(TT::MINUS, "-", L)); break;
