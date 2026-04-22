@@ -1,26 +1,5 @@
 #ifndef PARSER_H
 #define PARSER_H
-// Каждому правилу грамматики соответствует один метод.
-//   parseExpr()
-//     └─ parseAssign()
-//          └─ parseOr()         or
-//               └─ parseAnd()   and
-//                    └─ parseRel()   < > <= >= == !=
-//                         └─ parseAdd()   + -
-//                              └─ parseMul()   * / %
-//                                   └─ parseUnary()   not  -expr
-//                                        └─ parsePrimary()  литерал/ID/(expr)
-// Метод с БОЛЕЕ НИЗКИМ приоритетом вызывает метод с БОЛЕЕ ВЫСОКИМ.
-//
-// for I = E1 step E2 until E3 do S:
-//   E1, E2, E3 вычисляются ОДИН РАЗ до входа в цикл (требование ТЗ).
-//   E2 и E3 сохраняются в скрытых переменных __step_N и __limit_N.
-//   Для вложенных for используется счётчик forCounter.
-//
-// goto — поддержка forward/backward:
-//   labels    — уже объявленные метки: имя → адрес в ПОЛИЗ
-//   fwdGotos  — незакрытые forward-goto: имя → список индексов JMP
-//   В конце parse() проверяем что fwdGotos пуст.
 #include "token.h"
 #include "symtable.h"
 #include "poliz.h"
@@ -30,24 +9,23 @@
 #include <string>
 
 class Parser {
-    std::vector<Token>    toks;       // поток токенов от лексера
-    size_t                pos;        // текущая позиция в потоке
-    SymTable&             sym;        // таблица символов
-    std::vector<PolizOp>& code;       // сюда пишем ПОЛИЗ
+    std::vector<Token> toks;       // поток токенов от лексера
+    size_t pos;                    // текущая позиция в потоке
+    SymTable& sym;                 // таблица символов
+    std::vector<PolizOp>& code;    // сюда пишем ПОЛИЗ
 
-    int forCounter = 0;               // уникальный суффикс для скрытых переменных for
+    int forCounter = 0; // уникальный суффикс для скрытых переменных for
 
-    // Таблица меток: имя адрес в ПОЛИЗ (уже объявленные)
+    // Таблица меток: имя адрес в ПОЛИЗ
     std::unordered_map<std::string, int> labels;
 
-    // Forward-goto: имя метки → список индексов JMP, ждущих патчинга
+    // Forward-goto: имя метки и список индексов JMP, ждущих объявления
     std::unordered_map<std::string, std::vector<int>> fwdGotos;
 
-    // ---- Вспомогательные ----
-
+    // Для удобства
     Token& cur() { return toks[pos]; }
 
-    // Смотрим на токен впереди без сдвига (look-ahead)
+    // Смотрим на токен впереди без сдвига
     Token& peekAhead(int d = 1) {
         size_t idx = pos + d;
         if (idx >= toks.size()) idx = toks.size() - 1;
@@ -58,17 +36,14 @@ class Parser {
 
     Token eat(TT t) {
         if (!check(t))
-            throw std::runtime_error(
-                "Строка " + std::to_string(cur().line) +
-                ": ожидалось " + ttName(t) +
-                ", найдено '" + cur().val + "'");
+            throw std::runtime_error("Строка " + std::to_string(cur().line) + ": ожидалось " + ttName(t) + ", найдено '" + cur().val + "'");
         return toks[pos++];
     }
 
     bool tryEat(TT t) { if (check(t)) { pos++; return true; } return false; }
 
     // Добавить инструкцию в ПОЛИЗ, вернуть её индекс
-    int emit(PolizOp op) {
+    int InterPol(PolizOp op) {
         code.push_back(op);
         return static_cast<int>(code.size()) - 1;
     }
@@ -76,10 +51,8 @@ class Parser {
     // Текущий индекс (куда будет записана СЛЕДУЮЩАЯ инструкция)
     int here() { return static_cast<int>(code.size()); }
 
-    // Заполнить адрес перехода в уже записанной инструкции (патчинг)
-    void patch(int instrIdx, int targetAddr) {
-        code[instrIdx].ival = targetAddr;
-    }
+    // Заполнить адрес перехода в уже записанной инструкции
+    void patch(int instrIdx, int targetAddr) {code[instrIdx].ival = targetAddr;}
 
     std::string ttName(TT t) {
         switch (t) {
@@ -90,7 +63,12 @@ class Parser {
             case TT::RBRACE:    return "'}'";
             case TT::COLON:     return "':'";
             case TT::COMMA:     return "','";
+
             case TT::ID:        return "идентификатор";
+
+            case TT::LEX_PROGRAM: return "'program'";
+            case TT::LEX_READ:    return "'read'";
+            case TT::LEX_WRITE:   return "'write'";
             case TT::LEX_STEP:   return "'step'";
             case TT::LEX_UNTIL:  return "'until'";
             case TT::LEX_DO:     return "'do'";
@@ -99,11 +77,10 @@ class Parser {
         }
     }
 
-    // Зарегистрировать метку: запомнить адрес, запатчить все forward-goto на неё
+    // Зарегистрировать метку: запомнить адрес, все forward-goto
     void registerLabel(const std::string& name) {
         if (labels.count(name))
-            throw std::runtime_error(
-                "Метка '" + name + "' объявлена дважды");
+            throw std::runtime_error("Метка '" + name + "' объявлена дважды");
         int addr = here();
         labels[name] = addr;
         // Патчим все goto которые ссылались на эту метку
@@ -114,15 +91,12 @@ class Parser {
         }
     }
 
-    // ---- Разбор типов и констант ----
-
+    // Разбор типов и констант
     VType parseType() {
         if (tryEat(TT::LEX_INT))    return VType::INT;
         if (tryEat(TT::LEX_STRING)) return VType::STRING;
         if (tryEat(TT::LEX_REAL))   return VType::REAL;
-        throw std::runtime_error(
-            "Строка " + std::to_string(cur().line) +
-            ": ожидался тип (int / string / real)");
+        throw std::runtime_error("Строка " + std::to_string(cur().line) + ": ожидался тип (int / string / real)");
     }
 
     Val parseConst(VType expectedType) {
@@ -143,13 +117,10 @@ class Parser {
             if (neg) throw std::runtime_error("Унарный минус неприменим к строке");
             return eat(TT::STR_L).val;
         }
-        throw std::runtime_error(
-            "Строка " + std::to_string(cur().line) + ": ожидалась константа");
+        throw std::runtime_error("Строка " + std::to_string(cur().line) + ": ожидалась константа");
     }
 
-    // ---- Описание переменных ----
-
-    // 〈описание〉 → 〈тип〉 〈имя〉 [= 〈конст〉] { , 〈имя〉 [= 〈конст〉] } ;
+    // 〈описание〉 -> 〈тип〉 〈имя〉 [= 〈конст〉] { , 〈имя〉 [= 〈конст〉] } ;
     void parseDecl() {
         VType t = parseType();
         do {
@@ -158,65 +129,49 @@ class Parser {
                 Val v = parseConst(t);
                 sym.declareInit(name, t, v);
                 // Генерируем ПОЛИЗ для инициализации
-                if (t == VType::INT)
-                    emit({ OpCode::PUSH_INT, asInt(v) });
-                else if (t == VType::REAL)
-                    emit({ OpCode::PUSH_REAL, 0, asReal(v) });
-                else
-                    emit({ OpCode::PUSH_STR, 0, 0.0, asStr(v) });
-                emit({ OpCode::STORE, 0, 0.0, name });
-                emit({ OpCode::POP });
-            } else {
-                sym.declare(name, t);
-            }
+                if (t == VType::INT) InterPol({ OpCode::PUSH_INT, asInt(v) });
+                else if (t == VType::REAL) InterPol({ OpCode::PUSH_REAL, 0, asReal(v) });
+                else InterPol({ OpCode::PUSH_STR, 0, 0.0, asStr(v) });
+                InterPol({ OpCode::STORE, 0, 0.0, name });
+                InterPol({ OpCode::POP });
+            } else { sym.declare(name, t);}
         } while (tryEat(TT::COMMA));
         eat(TT::SEMICOLON);
     }
-
-    // ---- Выражения ----
-
-    void parseExpr() { parseAssign(); }
-
+    // Выражения по приоритетам
     // Присваивание: правоассоциативное (a = b = 5 → a = (b = 5))
-    // Look-ahead: если видим ID потом = (не ==) → это присваивание
-    void parseAssign() {
+    void parseExpr() {
         if (check(TT::ID) && peekAhead().type == TT::ASSIGN) {
             std::string name = eat(TT::ID).val;
             sym.get(name);         // проверяем что переменная объявлена
             eat(TT::ASSIGN);
-            parseAssign();         // рекурсия (правоассоциативность)
-            // STORE не снимает значение — результат присваивания = значение
-            emit({ OpCode::STORE, 0, 0.0, name });
-        } else {
-            parseOr();
-        }
+            parseExpr();         // рекурсия (правоассоциативность)
+            InterPol({ OpCode::STORE, 0, 0.0, name });
+        } else { parseOr();}
     }
 
-    // ОБЫЧНЫЕ вычисления OR (вариант VI.2):
-    //   Всегда вычисляем оба операнда, потом инструкцию OR.
     //   [левый] [правый] OR
     void parseOr() {
         parseAnd();
         while (check(TT::LEX_OR)) {
             pos++;
             parseAnd();          // правый операнд ВСЕГДА вычисляется
-            emit({ OpCode::OR });
+            InterPol({ OpCode::OR });
         }
     }
 
-    // ОБЫЧНЫЕ вычисления AND (вариант VI.2):
     //   [левый] [правый] AND
     void parseAnd() {
-        parseRel();
+        parseCmp();
         while (check(TT::LEX_AND)) {
             pos++;
-            parseRel();          // правый операнд ВСЕГДА вычисляется
-            emit({ OpCode::AND });
+            parseCmp();          // правый операнд ВСЕГДА вычисляется
+            InterPol({ OpCode::AND });
         }
     }
 
     // Операции сравнения: < > <= >= == !=
-    void parseRel() {
+    void parseCmp() {
         parseAdd();
         while (true) {
             OpCode op;
@@ -229,7 +184,7 @@ class Parser {
             else break;
             pos++;
             parseAdd();
-            emit({ op });
+            InterPol({ op });
         }
     }
 
@@ -240,101 +195,88 @@ class Parser {
             OpCode op = check(TT::PLUS) ? OpCode::ADD : OpCode::SUB;
             pos++;
             parseMul();
-            emit({ op });
+            InterPol({ op });
         }
     }
 
-    // Умножение, деление, остаток: * / %
+    // Умножение, деление: * /
     void parseMul() {
         parseUnary();
         while (check(TT::STAR) || check(TT::SLASH)) {
-            OpCode op;
-            if      (check(TT::STAR))    op = OpCode::MUL;
-            else                         op = OpCode::DIV;
+            OpCode op = check(TT::STAR) ? OpCode::MUL : OpCode::DIV;
             pos++;
             parseUnary();
-            emit({ op });
+            InterPol({ op });
         }
     }
 
-    // Унарные операторы: not и - (унарный минус, вариант V.1)
+    // Унарные операторы: not и - унарный минус
     void parseUnary() {
         if (tryEat(TT::LEX_NOT)) {
             parseUnary();
-            emit({ OpCode::NOT });
+            InterPol({ OpCode::NOT });
         } else if (check(TT::MINUS)) {
             pos++;
             parseUnary();
-            emit({ OpCode::NEG });
-        } else {
-            parsePrimary();
-        }
+            InterPol({ OpCode::NEG });
+        } else { parseSimple(); }
     }
 
     // Первичные: литерал, переменная, (выражение)
-    void parsePrimary() {
+    void parseSimple() {
         if (check(TT::INT_L)) {
-            emit({ OpCode::PUSH_INT, std::stoll(eat(TT::INT_L).val) });
+            InterPol({ OpCode::PUSH_INT, std::stoll(eat(TT::INT_L).val) });
         } else if (check(TT::REAL_L)) {
-            emit({ OpCode::PUSH_REAL, 0, std::stod(eat(TT::REAL_L).val) });
+            InterPol({ OpCode::PUSH_REAL, 0, std::stod(eat(TT::REAL_L).val) });
         } else if (check(TT::STR_L)) {
-            emit({ OpCode::PUSH_STR, 0, 0.0, eat(TT::STR_L).val });
+            InterPol({ OpCode::PUSH_STR, 0, 0.0, eat(TT::STR_L).val });
         } else if (check(TT::ID)) {
             std::string name = eat(TT::ID).val;
             sym.get(name);   // проверяем что переменная объявлена
-            emit({ OpCode::LOAD, 0, 0.0, name });
+            InterPol({ OpCode::LOAD, 0, 0.0, name });
         } else if (tryEat(TT::LPAREN)) {
             parseExpr();
             eat(TT::RPAREN);
         } else {
-            throw std::runtime_error(
-                "Строка " + std::to_string(cur().line) +
-                ": неожиданный токен '" + cur().val + "' в выражении");
+            throw std::runtime_error("Строка " + std::to_string(cur().line) + ": неожиданный токен " + cur().val);
         }
     }
 
-    // ---- Операторы ----
+    // Операторы
 
-    void parseStmt() {
-
-        // --- Помеченный оператор: метка : оператор ---
-        // Look-ahead: текущий токен ID И следующий токен ':'
+    void parseOper() {
+        // Помеченный оператор: метка : оператор
         if (check(TT::ID) && peekAhead().type == TT::COLON) {
             std::string labelName = eat(TT::ID).val;
             eat(TT::COLON);
-            registerLabel(labelName);   // запоминаем адрес, патчим forward-goto
-            parseStmt();                // разбираем помеченный оператор
+            registerLabel(labelName);   // запоминаем адрес, разбираем forward-goto
+            parseOper();
             return;
         }
 
-        // --- goto имя ; ---
-        // (вариант III.1)
-        //
-        // Два случая:
-        //   1. Метка уже объявлена (backward goto) → emit JMP с готовым адресом
-        //   2. Метка ещё не встречена (forward goto) → emit JMP 0, запомнить для патчинга
+        //  goto имя ; 
+        //   1. Метка уже объявлена (backward goto) InterPol JMP с готовым адресом
+        //   2. Метка ещё не встречена (forward goto) InterPol JMP 0, запомнить для правки
         if (tryEat(TT::LEX_GOTO)) {
             std::string labelName = eat(TT::ID).val;
             eat(TT::SEMICOLON);
             if (labels.count(labelName)) {
                 // Backward goto — адрес уже известен
-                emit({ OpCode::JMP, static_cast<long long>(labels[labelName]) });
+                InterPol({ OpCode::JMP, static_cast<long long>(labels[labelName]) });
             } else {
                 // Forward goto — адрес узнаем позже
-                int idx = emit({ OpCode::JMP, 0 });
+                int idx = InterPol({ OpCode::JMP, 0 });
                 fwdGotos[labelName].push_back(idx);
             }
             return;
         }
 
-        // --- if ( выражение ) оператор [else оператор] ---
-        // (вариант I.1)
-        //
+        // if ( выражение ) оператор [else оператор]
         // ПОЛИЗ:
         //   [условие]
-        //   JZ → метка_else   (если false, прыгаем к else или за if)
+        //   JZ метка_else   (если false, прыгаем к else или за if)
         //   [тело if]
-        //   JMP → метка_end   (только если есть else)
+        //   JMP метка_end   (только если есть else)
         //   метка_else:
         //   [тело else]       (если есть)
         //   метка_end:
@@ -343,14 +285,14 @@ class Parser {
             parseExpr();
             eat(TT::RPAREN);
 
-            int jzIdx = emit({ OpCode::JZ, 0 });   // адрес патчим после
+            int jzIdx = InterPol({ OpCode::JZ, 0 });   // адрес добавим после
 
-            parseStmt();   // тело if
+            parseOper();   // тело if
 
             if (tryEat(TT::LEX_ELSE)) {
-                int jmpIdx = emit({ OpCode::JMP, 0 });
+                int jmpIdx = InterPol({ OpCode::JMP, 0 });
                 patch(jzIdx, here());     // JZ → начало else
-                parseStmt();              // тело else
+                parseOper();              // тело else
                 patch(jmpIdx, here());    // JMP → за else
             } else {
                 patch(jzIdx, here());     // JZ → за if (нет else)
@@ -358,16 +300,11 @@ class Parser {
             return;
         }
 
-        // --- for I = E1 step E2 until E3 do S ---
-        // (вариант II.3)
-        //
-        // Семантика по ТЗ:
+        // for I = E1 step E2 until E3 do S
         //   • E1, E2, E3 вычисляются ОДИН РАЗ до входа в цикл
         //   • Если E1 > E3 — тело не выполняется ни разу
         //   • I: E1, E1+E2, E1+2*E2, ... пока I <= E3
-        //   • Параметр цикла I должен быть типа int (контекстное условие)
-        //   • После завершения значение I неопределено (требование ТЗ)
-        //
+        //   • После завершения значение I неопределено
         // ПОЛИЗ:
         //   [E1] STORE I POP
         //   [E2] STORE __step_N POP
@@ -385,33 +322,31 @@ class Parser {
 
             // Параметр цикла (должен быть int)
             std::string iName = eat(TT::ID).val;
-            auto& iEntry = sym.get(iName);
-            if (iEntry.type != VType::INT)
-                throw std::runtime_error(
-                    "Параметр цикла for '" + iName + "' должен быть типа int");
-
+            auto& iEnt = sym.get(iName);
+            if (iEnt.type != VType::INT)
+                throw std::runtime_error("Параметр цикла for " + iName + " должен быть типа int");
             eat(TT::ASSIGN);
 
             // E1 → I
             parseExpr();
-            emit({ OpCode::STORE, 0, 0.0, iName });
-            emit({ OpCode::POP });
+            InterPol({ OpCode::STORE, 0, 0.0, iName });
+            InterPol({ OpCode::POP });
 
             eat(TT::LEX_STEP);
 
             // E2 → __step_N (объявляем скрытую переменную)
             sym.declareIter(stepVar, VType::INT);
             parseExpr();
-            emit({ OpCode::STORE, 0, 0.0, stepVar });
-            emit({ OpCode::POP });
+            InterPol({ OpCode::STORE, 0, 0.0, stepVar });
+            InterPol({ OpCode::POP });
 
             eat(TT::LEX_UNTIL);
 
             // E3 → __limit_N
             sym.declareIter(limitVar, VType::INT);
             parseExpr();
-            emit({ OpCode::STORE, 0, 0.0, limitVar });
-            emit({ OpCode::POP });
+            InterPol({ OpCode::STORE, 0, 0.0, limitVar });
+            InterPol({ OpCode::POP });
 
             eat(TT::LEX_DO);
 
@@ -419,87 +354,85 @@ class Parser {
             int checkAddr = here();
 
             // Если I > limit → выходим из цикла
-            emit({ OpCode::LOAD, 0, 0.0, iName });
-            emit({ OpCode::LOAD, 0, 0.0, limitVar });
-            emit({ OpCode::GT });
-            int jnzIdx = emit({ OpCode::JNZ, 0 });   // адрес патчим после
+            InterPol({ OpCode::LOAD, 0, 0.0, iName });
+            InterPol({ OpCode::LOAD, 0, 0.0, limitVar });
+            InterPol({ OpCode::GT });
+            int jnzIdx = InterPol({ OpCode::JNZ, 0 });   // адрес добавим после
 
             // Тело цикла
-            parseStmt();
+            parseOper();
 
             // I = I + step
-            emit({ OpCode::LOAD,  0, 0.0, iName });
-            emit({ OpCode::LOAD,  0, 0.0, stepVar });
-            emit({ OpCode::ADD });
-            emit({ OpCode::STORE, 0, 0.0, iName });
-            emit({ OpCode::POP });
+            InterPol({ OpCode::LOAD,  0, 0.0, iName });
+            InterPol({ OpCode::LOAD,  0, 0.0, stepVar });
+            InterPol({ OpCode::ADD });
+            InterPol({ OpCode::STORE, 0, 0.0, iName });
+            InterPol({ OpCode::POP });
 
             // Назад к проверке
-            emit({ OpCode::JMP, static_cast<long long>(checkAddr) });
+            InterPol({ OpCode::JMP, static_cast<long long>(checkAddr) });
 
-            // Конец цикла — патчим выход
+            // Конец цикла — добавим выход
             patch(jnzIdx, here());
             return;
         }
 
-        // --- while ( выражение ) оператор ---
-        // (входит в общую часть ТЗ)
+        //  while ( выражение ) оператор 
         if (tryEat(TT::LEX_WHILE)) {
             int loopStart = here();
             eat(TT::LPAREN);
             parseExpr();
             eat(TT::RPAREN);
-            int jzIdx = emit({ OpCode::JZ, 0 });
-            parseStmt();
-            emit({ OpCode::JMP, static_cast<long long>(loopStart) });
+            int jzIdx = InterPol({ OpCode::JZ, 0 });
+            parseOper();
+            InterPol({ OpCode::JMP, static_cast<long long>(loopStart) });
             patch(jzIdx, here());
             return;
         }
 
-        // --- read ( идентификатор ) ; ---
+        //  read ( идентификатор ) ;
         if (tryEat(TT::LEX_READ)) {
             eat(TT::LPAREN);
             std::string name = eat(TT::ID).val;
             sym.get(name);
             eat(TT::RPAREN);
             eat(TT::SEMICOLON);
-            emit({ OpCode::READ, 0, 0.0, name });
+            InterPol({ OpCode::READ, 0, 0.0, name });
             return;
         }
 
-        // --- write ( выражение { , выражение } ) ; ---
+        // write ( выражение { , выражение } ) ; 
         if (tryEat(TT::LEX_WRITE)) {
             eat(TT::LPAREN);
             parseExpr();
-            emit({ OpCode::WRITE });
+            InterPol({ OpCode::WRITE });
             while (tryEat(TT::COMMA)) {
                 parseExpr();
-                emit({ OpCode::WRITE });
+                InterPol({ OpCode::WRITE });
             }
             eat(TT::RPAREN);
             eat(TT::SEMICOLON);
             return;
         }
 
-        // --- { операторы } — составной оператор ---
+        // { операторы } — составной оператор
         if (tryEat(TT::LBRACE)) {
             while (!check(TT::RBRACE) && !check(TT::EOF_TOK))
-                parseStmt();
+                parseOper();
             eat(TT::RBRACE);
             return;
         }
 
-        // --- выражение ; — оператор-выражение ---
+        //  выражение ; — оператор-выражение 
         parseExpr();
-        emit({ OpCode::POP });   // результат выражения не нужен
+        InterPol({ OpCode::POP });   // результат выражения не нужен
         eat(TT::SEMICOLON);
     }
 
 public:
-    Parser(std::vector<Token> tokens, SymTable& s, std::vector<PolizOp>& c)
-        : toks(std::move(tokens)), pos(0), sym(s), code(c) {}
+    Parser(std::vector<Token> tokens, SymTable& s, std::vector<PolizOp>& c): toks(std::move(tokens)), pos(0), sym(s), code(c) {}
 
-    // 〈программа〉 → program { 〈описания〉 〈операторы〉 }
+    // 〈программа〉 - program { 〈описания〉 〈операторы〉 }
     void parse() {
         eat(TT::LEX_PROGRAM);
         eat(TT::LBRACE);
@@ -510,14 +443,13 @@ public:
 
         // Потом операторы
         while (!check(TT::RBRACE) && !check(TT::EOF_TOK))
-            parseStmt();
+            parseOper();
 
         eat(TT::RBRACE);
 
         // Проверяем что все forward-goto получили свои метки
         if (!fwdGotos.empty()) {
-            throw std::runtime_error(
-                "goto на несуществующую метку '" + fwdGotos.begin()->first + "'");
+            throw std::runtime_error("goto на несуществующую метку " + fwdGotos.begin()->first);
         }
     }
 };
