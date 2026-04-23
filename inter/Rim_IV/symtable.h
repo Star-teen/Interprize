@@ -6,13 +6,13 @@
 #include <map>
 #include <stdexcept>
 
-// Тип переменной
+// Variable type
 enum class VType { INT, REAL, STRING };
 
-// Val — значение переменной во время выполнения
+// Val — variable value at runtime
 using Val = std::variant<long long, double, std::string>;
 
-// при каждом значении Val вызов свой
+// Functions to determine the active type of Val
 inline VType valType(const Val& v) {
     if (std::holds_alternative<long long>(v)) return VType::INT;
     if (std::holds_alternative<double>(v))    return VType::REAL;
@@ -23,13 +23,13 @@ inline long long   asInt(const Val& v)  { return std::get<long long>(v); }
 inline double      asReal(const Val& v) { return std::get<double>(v); }
 inline std::string asStr(const Val& v)  { return std::get<std::string>(v); }
 
-// Привести Val к double (нужно для арифметики int+real → real)
+// Convert Val to double (needed for int+real arithmetic → real)
 inline double toReal(const Val& v) {
     if (std::holds_alternative<long long>(v)) return static_cast<double>(asInt(v));
     return asReal(v);
 }
 
-// Преобразовать Val в строку для вывода через write
+// Convert Val to string for output via write
 inline std::string valToStr(const Val& v) {
     if (std::holds_alternative<long long>(v))
         return std::to_string(asInt(v));
@@ -38,38 +38,37 @@ inline std::string valToStr(const Val& v) {
     return asStr(v);
 }
 
-// Запись в таблице символов
+// Symbol table entry
 struct SymTab {
     VType type;
     Val   val;
     bool  initialized;
 };
 
-// Таблица символов
+// Symbol table
 class SymTable {
     std::map<std::string, SymTab> vars;
 
 public:
-    // Объявить переменную без начального значения
+    // Declare a variable without an initial value
     void declare(const std::string& name, VType t) {
         if (vars.count(name))
-            throw std::runtime_error("Повторное объявление переменной: " + name);
-        Val def; // значение по умолчанию
+            throw std::runtime_error("Duplicate variable declaration: " + name);
+        Val def; // default value
         if (t == VType::INT) def = 0LL;
         else if (t == VType::REAL) def = 0.0;
         else def = std::string{};
         vars[name] = { t, def, false };
     }
 
-    // Объявить и сразу инициализировать константой
+    // Declare and initialize with a constant
     void declareInit(const std::string& name, VType t, Val v) {
         declare(name, t);
         set(name, v);
         vars[name].initialized = true;
     }
 
-    // Объявить переменную итератор для for
-    // Имя можно перезаписывать
+    // Declare an iterator variable for for loops (can be overwritten)
     void declareIter(const std::string& name, VType t) {
         Val def;
         if (t == VType::INT)  def = 0LL;
@@ -78,38 +77,38 @@ public:
         vars[name] = { t, def, false };
     }
 
-    // Получить запись о переменной
+    // Get a variable entry (throws if not declared)
     SymTab& get(const std::string& name) {
         auto it = vars.find(name);
         if (it == vars.end())
-            throw std::runtime_error("Переменная " + name + " не объявлена");
+            throw std::runtime_error("Variable " + name + " not declared");
         return it->second;
     }
 
-    // Присвоить значение с учетом совместимости
+    // Assign a value with type compatibility check
     void set(const std::string& name, Val v) {
         auto& cur = get(name);
-        if (cur.type == VType::INT) { // int = real → усечение
+        if (cur.type == VType::INT) { // int = real → truncation
             if (std::holds_alternative<double>(v)) v = static_cast<long long>(asReal(v));
             else if (!std::holds_alternative<long long>(v))
-                throw std::runtime_error("Несовместимость типов при присваивании в " + name);
-        } else if (cur.type == VType::REAL) { // real = int → расширение
+                throw std::runtime_error("Type mismatch in assignment to " + name);
+        } else if (cur.type == VType::REAL) { // real = int → widening
             if (std::holds_alternative<long long>(v)) v = static_cast<double>(asInt(v));
             else if (!std::holds_alternative<double>(v))
-                throw std::runtime_error("Несовместимость типов при присваивании в " + name);
-        } else { // string = только string
+                throw std::runtime_error("Type mismatch in assignment to " + name);
+        } else { // string = only string
             if (!std::holds_alternative<std::string>(v))
-                throw std::runtime_error("Несовместимость типов при присваивании в " + name);
+                throw std::runtime_error("Type mismatch in assignment to " + name);
         }
         cur.val = v;
         cur.initialized = true;
     }
 
-    // Прочитать значение переменной
+    // Read a variable's value (throws if not initialized)
     Val value(const std::string& name) {
         auto& cur = get(name);
         if (!cur.initialized)
-            throw std::runtime_error("Переменная " + name + " использована до инициализации");
+            throw std::runtime_error("Variable " + name + " used before initialization");
         return cur.val;
     }
 };

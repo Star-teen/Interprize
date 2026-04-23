@@ -6,4 +6,5 @@ program
     if (x < 3)
         goto start;
     write (99);
+    /* comment */
 }

@@ -4,23 +4,23 @@
 #include <string>
 
 enum class OpCode {
-    // Положить значение на стек
-    PUSH_INT,   // стек ← ival (long long)
-    PUSH_REAL,  // стек ← rval (double)
-    PUSH_STR,   // стек ← sval (string)
+    // Push value onto stack
+    PUSH_INT,   // stack ← ival (long long)
+    PUSH_REAL,  // stack ← rval (double)
+    PUSH_STR,   // stack ← sval (string)
 
-    // Работа с переменными
-    LOAD,       // стек ← значение переменной sval
-    STORE,      // переменная sval ← вершина стека
+    // Variable operations
+    LOAD,       // stack ← value of variable sval
+    STORE,      // variable sval ← top of stack
 
-    // (снимают 2 операнда, кладут результат)
-    ADD,        // сложение (конкатенация строк)
-    SUB,        // вычитание
-    MUL,        // умножение
-    DIV,        // деление (проверяем деление на 0)
-    NEG,        // унарный минус (снимает 1 операнд)
+    // Arithmetic (pop 2 operands, push result)
+    ADD,        // addition (string concatenation)
+    SUB,        // subtraction
+    MUL,        // multiplication
+    DIV,        // division (checks division by zero)
+    NEG,        // unary minus (pops 1 operand)
 
-    // Сравнения (снимают 2, кладут 0 или 1)
+    // Comparisons (pop 2, push 0 or 1)
     LT,         // <
     GT,         // >
     LE,         // <=
@@ -28,20 +28,20 @@ enum class OpCode {
     EQ,         // ==
     NEQ,        // !=
 
-    // Логика
-    AND,        // снять R,L → (L != 0 && R != 0) ? 1 : 0
-    OR,         // снять R,L → (L != 0 || R != 0) ? 1 : 0
-    NOT,        // снять v   → (v == 0) ? 1 : 0
+    // Logic
+    AND,        // pop R,L → (L != 0 && R != 0) ? 1 : 0
+    OR,         // pop R,L → (L != 0 || R != 0) ? 1 : 0
+    NOT,        // pop v   → (v == 0) ? 1 : 0
 
-    // Переходы
-    JMP,        // безусловный переход с индексом ival
-    JZ,         // снять со стека; если 0 перейти к ival
-    JNZ,        // снять со стека; если НЕ 0 перейти к ival
+    // Jumps
+    JMP,        // unconditional jump to index ival
+    JZ,         // pop from stack; if 0 then jump to ival
+    JNZ,        // pop from stack; if not 0 then jump to ival
 
-    READ,       // прочитать с cin в переменную sval
-    WRITE,      // снять со стека, вывести в cout
+    READ,       // read from cin into variable sval
+    WRITE,      // pop from stack, output to cout
 
-    POP         // снять вершину стека (мусор от оператора-выражения)
+    POP         // pop top of stack (garbage from expression statements)
 };
 
 struct PolizOp {

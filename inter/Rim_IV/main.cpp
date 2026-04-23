@@ -20,36 +20,36 @@ int main(int argc, char* argv[]) {
         }
     }
     if (filename.empty()) {
-        std::cerr << "Использование: " << argv[0] << " [-d] <файл>" << std::endl;
-        std::cerr << "  -d, --debug  - включить отладку (лог в файл имя_файла.log)" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " [-d] <file>" << std::endl;
+        std::cerr << "  -d, --debug  - enable debug mode (logs to file_name.log)" << std::endl;
         return 1;
     }
 
-    // Чтение исходного кода
+    // Read source code
     std::ifstream f(filename);
     if (!f) {
-        std::cerr << "Ошибка: не удалось открыть файл " << filename << std::endl;
+        std::cerr << "Error: could not open file " << filename << std::endl;
         return 1;
     }
     std::ostringstream ss;
     ss << f.rdbuf();
     src = ss.str();
     
-    // Инициализация отладчика
+    // Initialize debugger
     Debugger dbg;
     if (debugMode) {
         dbg.init(filename);
-        std::cout << "Отладка включена. Лог-файл: " << filename.substr(0, filename.find_last_of('.')) << ".log" << std::endl;
+        std::cout << "Debug mode enabled. Log file: " << filename.substr(0, filename.find_last_of('.')) << ".log" << std::endl;
     }
 
     try {
-        // Фаза 1: лексический анализ
+        // Phase 1: lexical analysis
         Lexer lexer(src);
         std::vector<Token> tokens = lexer.tokenize();
 
         if (debugMode) dbg.logTokens(tokens);
 
-        // Фаза 2: синтаксический + семантический анализ + генерация ПОЛИЗ
+        // Phase 2: syntax + semantic analysis + POLIZ generation
         SymTable sym;
         std::vector<PolizOp> code;
         Parser parser(tokens, sym, code);
@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
             dbg.logSymbolTable(sym);
         }
 
-        // Фаза 3: интерпретация ПОЛИЗ
+        // Phase 3: POLIZ interpretation
         if (debugMode) dbg.logExecutionStart();
 
         Interpreter interp(code, sym, &dbg);
@@ -69,8 +69,8 @@ int main(int argc, char* argv[]) {
         if (debugMode) dbg.logExecutionEnd();
 
     } catch (const std::exception& e) {
-        if (debugMode) dbg.logError(e.what(), "Выполнение");
-        std::cerr << std::endl << "[ОШИБКА] " << e.what() << std::endl;
+        if (debugMode) dbg.logError(e.what(), "Execution");
+        std::cerr << std::endl << "[ERROR] " << e.what() << std::endl;
         return 1;
     }
 

@@ -7,51 +7,51 @@
 #include <cctype>
 
 class Lexer {
-    std::string prog_text;   // весь текст программы
-    size_t      pos;   // текущая позиция
-    int         ln;    // номер строки (для сообщений об ошибках)
+    std::string prog_text;   // entire program text
+    size_t      pos;   // current position
+    int         ln;    // line number (for error messages)
 
-    // Текущий символ (или '\0' если конец файла)
+    // Current character (or '\0' if end of file)
     char cur() {return pos < prog_text.size() ? prog_text[pos] : '\0';}
 
-    // Следующий символ
+    // Next character
     char nextChar() {return (pos + 1) < prog_text.size() ? prog_text[pos + 1] : '\0';}
 
-    // прочитать и перейти дальше
+    // read and advance
     char step_by() {
         char c = prog_text[pos++];
         if (c == '\n') ln++;
         return c;
     }
 
-    // Пропустить все пробельные символы (пробел, \n, \t, \r)
+    // Skip all whitespace characters (space, \n, \t, \r)
     void skipSpace() {
         while (pos < prog_text.size() && std::isspace((unsigned char)cur()))
             step_by();
     }
 
-    // Пропустить комментарий /* ... */
+    // Skip /* ... */ comment
     void skipComment() {
-        step_by(); step_by();   // съедаем '/' и '*'
+        step_by(); step_by();   // eat '/' and '*'
         while (pos + 1 < prog_text.size()) {
             if (cur() == '*' && nextChar() == '/') {
-                step_by(); step_by();   // съедаем '*' и '/'
+                step_by(); step_by();   // eat '*' and '/'
                 return;
             }
             step_by();
         }
-        throw std::runtime_error("Незакрытый комментарий /* без */");
+        throw std::runtime_error("Unclosed /* comment */");
     }
 
-    // Прочитать число: целое или вещественное
+    // Read number: integer or real
     Token readNumber(int L) {
         std::string s;
         while (pos < prog_text.size() && std::isdigit((unsigned char)cur()))
             s += step_by();
 
-        // Если после цифр стоит точка и ещё цифра → это REAL
+        // If there is a dot followed by a digit → this is REAL
         if (cur() == '.' && std::isdigit((unsigned char)nextChar())) {
-            s += step_by();   // добавляем '.'
+            s += step_by();   // add '.'
             while (pos < prog_text.size() && std::isdigit((unsigned char)cur()))
                 s += step_by();
             return Token(TT::REAL_L, s, L);
@@ -60,23 +60,23 @@ class Lexer {
         return Token(TT::INT_L, s, L);
     }
 
-    // Прочитать строку в кавычках "..."
+    // Read quoted string "..."
     Token readString(int L) {
-        step_by();   // пропускаем открывающую "
+        step_by();   // skip opening quote
         std::string s;
         while (pos < prog_text.size() && cur() != '"') s += step_by();
-        if (cur() != '"') throw std::runtime_error("Строка не закрыта (достигнут конец файла)");
-        step_by();   // пропускаем закрывающую "
+        if (cur() != '"') throw std::runtime_error("Unclosed string (end of file reached)");
+        step_by();   // skip closing quote
         return Token(TT::STR_L, s, L);
     }
 
-    // Прочитать идентификатор или служебное слово
+    // Read identifier or keyword
     Token readIdentOrKeyword(int L) {
         std::string s;
         while (pos < prog_text.size() && (std::isalnum((unsigned char)cur()) || cur() == '_'))
             s += step_by();
 
-        // Сравниваем с таблицей ключевых слов
+        // Compare with keyword table
         if (s == "program") return Token(TT::LEX_PROGRAM, s, L);
         if (s == "int") return Token(TT::LEX_INT, s, L);
         if (s == "string") return Token(TT::LEX_STRING, s, L);
@@ -95,19 +95,19 @@ class Lexer {
         if (s == "or") return Token(TT::LEX_OR, s, L);
         if (s == "not") return Token(TT::LEX_NOT, s, L);
 
-        // имя переменной или метки
+        // variable or label name
         return Token(TT::ID, s, L);
     }
 
 public:
     explicit Lexer(std::string text) : prog_text(std::move(text)), pos(0), ln(1) {}
 
-    //разбить текст на токены
+    // tokenize the text
     std::vector<Token> tokenize() {
         std::vector<Token> result;
 
         while (true) {
-            // Пропускаем пробелы и комментарии
+            // Skip whitespace and comments
             while (true) {
                 skipSpace();
                 if (cur() == '/' && nextChar() == '*') {
@@ -117,38 +117,38 @@ public:
                 break;
             }
 
-            // Конец файла
+            // End of file
             if (cur() == '\0') {
                 result.push_back(Token(TT::EOF_TOK, "", ln));
                 break;
             }
 
-            int L = ln;    // запоминаем строку текущего токена
+            int L = ln;    // remember line number for current token
             char c = cur();
 
-            // Число
+            // Number
             if (std::isdigit((unsigned char)c)) {
                 result.push_back(readNumber(L));
                 continue;
             }
-            // Идентификатор / ключевое слово
+            // Identifier / keyword
             if (std::isalpha((unsigned char)c) || c == '_') {
                 result.push_back(readIdentOrKeyword(L));
                 continue;
             }
-            // Строка
+            // String
             if (c == '"') {
                 result.push_back(readString(L));
                 continue;
             }
 
-            // Двухсимвольные операторы (проверяем пару символов)
+            // Two-character operators (check pair of characters)
             if (c=='<' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::LE, "<=", L)); continue; }
             if (c=='>' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::GE, ">=", L)); continue; }
             if (c=='=' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::EQ, "==", L)); continue; }
             if (c=='!' && nextChar()=='=') { step_by(); step_by(); result.push_back(Token(TT::NEQ, "!=", L)); continue; }
 
-            // Односимвольные операторы
+            // Single-character operators
             step_by();
             switch (c) {
                 case '+': result.push_back(Token(TT::PLUS, "+", L)); break;
@@ -165,7 +165,7 @@ public:
                 case ';': result.push_back(Token(TT::SEMICOLON, ";", L)); break;
                 case ',': result.push_back(Token(TT::COMMA, ",", L)); break;
                 case ':': result.push_back(Token(TT::COLON, ":", L)); break;
-                default: throw std::runtime_error("Строка " + std::to_string(L) + ": неизвестный символ: " + c);
+                default: throw std::runtime_error("Line " + std::to_string(L) + ": unknown character: " + c);
             }
         }
 

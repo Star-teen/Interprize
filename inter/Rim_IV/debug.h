@@ -14,8 +14,8 @@
 #include <stack>
 
 //============================================================================
-// Класс для отладки интерпретатора
-// Записывает всю диагностическую информацию в файл program.log
+// Interpreter debugging class
+// Writes all diagnostic information to program.log file
 //============================================================================
 
 class Debugger {
@@ -26,7 +26,7 @@ private:
     int stepCount;
     std::chrono::steady_clock::time_point startTime;
 
-    // Преобразование OpCode в строку
+    // Convert OpCode to string
     std::string opCodeToString(OpCode code) {
         switch (code) {
             case OpCode::PUSH_INT: return "PUSH_INT";
@@ -58,7 +58,7 @@ private:
         }
     }
 
-    // Преобразование VType в строку
+    // Convert VType to string
     std::string vTypeToString(VType t) {
         switch (t) {
             case VType::INT: return "int";
@@ -68,16 +68,12 @@ private:
         }
     }
 
-    // Получение текущего времени в формате ЧЧ:ММ:СС
+    // Get current time in HH:MM:SS format
     std::string getCurrentTime() {
         auto now = std::chrono::system_clock::now();
         auto time_t = std::chrono::system_clock::to_time_t(now);
         std::tm tm;
-#ifdef _WIN32
-        localtime_s(&tm, &time_t);
-#else
         localtime_r(&time_t, &tm);
-#endif
         std::ostringstream oss;
         oss << std::setfill('0') << std::setw(2) << tm.tm_hour << ":"
             << std::setw(2) << tm.tm_min << ":"
@@ -88,9 +84,9 @@ private:
 public:
     Debugger() : enabled(false), stepCount(0) {}
 
-    // Инициализация отладчика
+    // Initialize debugger
     void init(const std::string& sourceFilename) {
-        // Формируем имя лог-файла: исходное_имя.log
+        // Generate log filename: source_name.log
         logFilename = sourceFilename;
         size_t dotPos = logFilename.find_last_of('.');
         if (dotPos != std::string::npos) {
@@ -100,7 +96,7 @@ public:
         
         logFile.open(logFilename);
         if (!logFile.is_open()) {
-            std::cerr << "Предупреждение: не удалось создать лог-файл " << logFilename << std::endl;
+            std::cerr << "Warning: could not create log file " << logFilename << std::endl;
             enabled = false;
         } else {
             enabled = true;
@@ -110,7 +106,7 @@ public:
         }
     }
 
-    // Закрытие лог-файла
+    // Close log file
     void close() {
         if (enabled && logFile.is_open()) {
             writeFooter();
@@ -118,19 +114,19 @@ public:
         }
     }
 
-    // Запись заголовка
+    // Write header
     void writeHeader(const std::string& sourceFilename) {
         if (!enabled) return;
         logFile << "╔════════════════════════════════════════════════════════════════════════════╗" << std::endl;
-        logFile << "║                         ОТЛАДКА ИНТЕРПРЕТАТОРА                             ║" << std::endl;
+        logFile << "║                         INTERPRETER DEBUG LOG                             ║" << std::endl;
         logFile << "╠════════════════════════════════════════════════════════════════════════════╣" << std::endl;
-        logFile << "║ Время запуска: " << std::setw(40) << getCurrentTime() << " ║" << std::endl;
-        logFile << "║ Исходный файл: " << std::setw(40) << sourceFilename << " ║" << std::endl;
+        logFile << "║ Start time:      " << std::setw(40) << getCurrentTime() << " ║" << std::endl;
+        logFile << "║ Source file:     " << std::setw(40) << sourceFilename << " ║" << std::endl;
         logFile << "╚════════════════════════════════════════════════════════════════════════════╝" << std::endl;
         logFile << std::endl;
     }
 
-    // Запись подвала (статистика)
+    // Write footer (statistics)
     void writeFooter() {
         if (!enabled) return;
         auto endTime = std::chrono::steady_clock::now();
@@ -138,20 +134,20 @@ public:
         
         logFile << std::endl;
         logFile << "╔════════════════════════════════════════════════════════════════════════════╗" << std::endl;
-        logFile << "║                         СТАТИСТИКА ВЫПОЛНЕНИЯ                              ║" << std::endl;
+        logFile << "║                         EXECUTION STATISTICS                              ║" << std::endl;
         logFile << "╠════════════════════════════════════════════════════════════════════════════╣" << std::endl;
-        logFile << "║ Всего шагов:     " << std::setw(38) << stepCount << " ║" << std::endl;
-        logFile << "║ Время выполнения:" << std::setw(37) << elapsed << " ms ║" << std::endl;
+        logFile << "║ Total steps:     " << std::setw(38) << stepCount << " ║" << std::endl;
+        logFile << "║ Execution time:  " << std::setw(37) << elapsed << " ms ║" << std::endl;
         logFile << "╚════════════════════════════════════════════════════════════════════════════╝" << std::endl;
     }
 
-    // Запись информации о лексическом анализе
+    // Log lexical analysis information
     void logTokens(const std::vector<Token>& tokens) {
         if (!enabled) return;
         logFile << "┌────────────────────────────────────────────────────────────────────────────┐" << std::endl;
-        logFile << "│ ФАЗА 1: ЛЕКСИЧЕСКИЙ АНАЛИЗ                                                │" << std::endl;
+        logFile << "│ PHASE 1: LEXICAL ANALYSIS                                                 │" << std::endl;
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
-        logFile << "│ Всего токенов: " << tokens.size() << std::endl;
+        logFile << "│ Total tokens: " << tokens.size() << std::endl;
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
         
         for (size_t i = 0; i < tokens.size(); ++i) {
@@ -199,33 +195,32 @@ public:
                 case TT::EOF_TOK: logFile << "EOF"; break;
                 default: logFile << "UNKNOWN"; break;
             }
-            logFile << " (строка " << tokens[i].line << ")" << std::endl;
+            logFile << " (line " << tokens[i].line << ")" << std::endl;
         }
         logFile << "└────────────────────────────────────────────────────────────────────────────┘" << std::endl;
         logFile << std::endl;
     }
 
-    // Запись информации о таблице символов
+    // Log symbol table information
     void logSymbolTable(SymTable& sym) {
         if (!enabled) return;
-        // В реальной реализации нужно добавить метод getAllVariables в SymTable
+        // In a real implementation, we would need to add a getAllVariables method to SymTable
         logFile << "┌────────────────────────────────────────────────────────────────────────────┐" << std::endl;
-        logFile << "│ ТАБЛИЦА СИМВОЛОВ                                                           │" << std::endl;
+        logFile << "│ SYMBOL TABLE                                                              │" << std::endl;
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
-        logFile << "│ Переменные:                                                                │" << std::endl;
-        // Здесь должен быть перебор переменных
-        logFile << "│   (Для полной информации нужен метод getAllVariables в SymTable)           │" << std::endl;
+        logFile << "│ Variables:                                                                │" << std::endl;
+        logFile << "│   (Full information requires getAllVariables method in SymTable)          │" << std::endl;
         logFile << "└────────────────────────────────────────────────────────────────────────────┘" << std::endl;
         logFile << std::endl;
     }
 
-    // Запись ПОЛИЗа
+    // Log POLIZ output
     void logPoliz(const std::vector<PolizOp>& code) {
         if (!enabled) return;
         logFile << "┌────────────────────────────────────────────────────────────────────────────┐" << std::endl;
-        logFile << "│ ФАЗА 2: СИНТАКСИЧЕСКИЙ АНАЛИЗ И ГЕНЕРАЦИЯ ПОЛИЗА                           │" << std::endl;
+        logFile << "│ PHASE 2: SYNTAX ANALYSIS AND POLIZ GENERATION                             │" << std::endl;
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
-        logFile << "│ Всего инструкций: " << code.size() << std::endl;
+        logFile << "│ Total instructions: " << code.size() << std::endl;
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
         
         for (size_t i = 0; i < code.size(); ++i) {
@@ -259,18 +254,18 @@ public:
         logFile << std::endl;
     }
 
-    // Запись шага выполнения
+    // Log execution step
     void logStep(size_t pc, const PolizOp& op, const std::stack<Val>& st, const std::string& additional = "") {
         if (!enabled) return;
         
         stepCount++;
         
         logFile << "┌────────────────────────────────────────────────────────────────────────────┐" << std::endl;
-        logFile << "│ ШАГ " << std::setw(6) << stepCount << " | PC=" << std::setw(4) << pc << "                                 │" << std::endl;
+        logFile << "│ STEP " << std::setw(6) << stepCount << " | PC=" << std::setw(4) << pc << "                                 │" << std::endl;
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
         
-        // Текущая инструкция
-        logFile << "│ Инструкция: " << opCodeToString(op.code);
+        // Current instruction
+        logFile << "│ Instruction: " << opCodeToString(op.code);
         switch (op.code) {
             case OpCode::PUSH_INT: logFile << " " << op.ival; break;
             case OpCode::PUSH_REAL: logFile << " " << op.rval; break;
@@ -279,22 +274,22 @@ public:
             case OpCode::STORE: logFile << " " << op.sval; break;
             case OpCode::READ: logFile << " " << op.sval; break;
             case OpCode::JMP: logFile << " -> " << op.ival; break;
-            case OpCode::JZ: logFile << " -> " << op.ival << " (если вершина == 0)"; break;
-            case OpCode::JNZ: logFile << " -> " << op.ival << " (если вершина != 0)"; break;
+            case OpCode::JZ: logFile << " -> " << op.ival << " (if top == 0)"; break;
+            case OpCode::JNZ: logFile << " -> " << op.ival << " (if top != 0)"; break;
             default: break;
         }
         logFile << std::endl;
         
-        // Дополнительная информация
+        // Additional information
         if (!additional.empty()) {
-            logFile << "│ Доп.: " << additional << std::endl;
+            logFile << "│ Info: " << additional << std::endl;
         }
         
-        // Стек
+        // Stack
         logFile << "├────────────────────────────────────────────────────────────────────────────┤" << std::endl;
-        logFile << "│ Стек (вершина справа): [";
+        logFile << "│ Stack (top on the right): [";
         
-        // Копируем стек для вывода (std::stack не имеет итераторов)
+        // Copy stack for output (std::stack has no iterators)
         std::stack<Val> temp = st;
         std::vector<std::string> stackValues;
         while (!temp.empty()) {
@@ -318,35 +313,35 @@ public:
         logFile << std::endl;
     }
 
-    // Запись ошибки
+    // Log error
     void logError(const std::string& error, const std::string& phase) {
         if (!enabled) return;
         logFile << "╔════════════════════════════════════════════════════════════════════════════╗" << std::endl;
-        logFile << "║ ОШИБКА В ФАЗЕ: " << std::setw(41) << phase << " ║" << std::endl;
+        logFile << "║ ERROR IN PHASE: " << std::setw(41) << phase << " ║" << std::endl;
         logFile << "╠════════════════════════════════════════════════════════════════════════════╣" << std::endl;
         logFile << "║ " << error << std::endl;
         logFile << "╚════════════════════════════════════════════════════════════════════════════╝" << std::endl;
     }
 
-    // Запись информации о начале выполнения
+    // Log execution start
     void logExecutionStart() {
         if (!enabled) return;
         logFile << "┌────────────────────────────────────────────────────────────────────────────┐" << std::endl;
-        logFile << "│ ФАЗА 3: ВЫПОЛНЕНИЕ ПРОГРАММЫ                                               │" << std::endl;
+        logFile << "│ PHASE 3: PROGRAM EXECUTION                                                │" << std::endl;
         logFile << "└────────────────────────────────────────────────────────────────────────────┘" << std::endl;
         logFile << std::endl;
     }
 
-    // Запись информации о завершении выполнения
+    // Log successful execution end
     void logExecutionEnd() {
         if (!enabled) return;
         logFile << std::endl;
         logFile << "┌────────────────────────────────────────────────────────────────────────────┐" << std::endl;
-        logFile << "│ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО УСПЕШНО                                               │" << std::endl;
+        logFile << "│ EXECUTION COMPLETED SUCCESSFULLY                                          │" << std::endl;
         logFile << "└────────────────────────────────────────────────────────────────────────────┘" << std::endl;
     }
 
-    // Проверка, включён ли отладчик
+    // Check if debugger is enabled
     bool isEnabled() const { return enabled; }
 };
 

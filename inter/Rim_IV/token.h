@@ -4,13 +4,13 @@
 #include <string>
 
 enum class TT {
-    INT_L,    // целое число
-    REAL_L,   // вещественное
-    STR_L,    // строка
-    ID,         // Идентификатор
-    LEX_INT,     // int
-    LEX_STRING,  // string
-    LEX_REAL,    // real
+    INT_L,      // integer literal
+    REAL_L,     // real literal
+    STR_L,      // string literal
+    ID,         // identifier
+    LEX_INT,    // int
+    LEX_STRING, // string
+    LEX_REAL,   // real
 
     LEX_PROGRAM, // program
     LEX_IF,      // if
@@ -40,7 +40,7 @@ enum class TT {
     EQ,         // ==
     NEQ,        // !=
 
-    ASSIGN,     // = присвоить
+    ASSIGN,     // = assignment
 
     LPAREN,     // (
     RPAREN,     // )
@@ -48,15 +48,15 @@ enum class TT {
     RBRACE,     // }
     SEMICOLON,  // ;
     COMMA,      // ,
-    COLON,      // :   ← разделитель метки: "myLabel: оператор"
+    COLON,      // : label separator: "myLabel: statement"
 
     EOF_TOK
 };
 
 struct Token {
-    TT          type;   // тип токена 
-    std::string val;    // текстовое значение
-    int         line;   // номер строки в исходнике
+    TT          type;   // token type
+    std::string val;    // textual value
+    int         line;   // line number in source file
 
     Token(TT t, std::string v, int ln)
         : type(t), val(std::move(v)), line(ln) {}
