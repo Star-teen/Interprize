@@ -13,11 +13,13 @@
 #include <stack>
 #include <iostream>
 #include <stdexcept>
+#include "debug.h"
 
 class Interpreter {
     const std::vector<PolizOp>& code;   // программа в ПОЛИЗ
     SymTable& sym;    // таблица переменных
     std::stack<Val> st;     // рабочий стек
+    Debugger* dbg;  // указатель на отладчик (может быть nullptr)
 
     Val pop() {
         if (st.empty()) throw std::runtime_error("Ошибка: стек пуст");
@@ -106,14 +108,21 @@ class Interpreter {
     }
 
 public:
-    Interpreter(const std::vector<PolizOp>& c, SymTable& s): code(c), sym(s) {}
+    Interpreter(const std::vector<PolizOp>& c, SymTable& s, Debugger* d = nullptr): code(c), sym(s), dbg(d) {}
 
     void run() {
         size_t pc = 0;
+        int steps = 0;
+        const int MAX_STEPS = 100000;
 
         while (pc < code.size()) {
+            steps++;
+            if (steps > MAX_STEPS) throw std::runtime_error("Превышено максимальное количество шагов (возможно зацикливание)");
+
             const PolizOp& op = code[pc];
 
+            if (dbg && dbg->isEnabled()) dbg->logStep(pc, op, st);
+            
             switch (op.code) {
 
                 case OpCode::PUSH_INT: push(op.ival); break;
