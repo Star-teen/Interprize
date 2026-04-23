@@ -205,7 +205,7 @@ public:
                 
                 case OpCode::WRITE: {
                     Val v = pop();
-                    std::cout << valToStr(v);
+                    std::cout << valToStr(v) << " ";
                     break;
                 }
 

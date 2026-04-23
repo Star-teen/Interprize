@@ -1,31 +1,12 @@
-#pragma once
-// ============================================================
-// interpreter.h — стековая виртуальная машина
-//
-// Выполняет программу в ПОЛИЗ (вектор PolizOp).
-//
-// КАК РАБОТАЕТ:
-//   pc (program counter) — индекс текущей инструкции.
-//   st — стек значений Val.
-//   Инструкции читаются одна за другой.
-//   JMP/JZ/JNZ изменяют pc (прыжки).
-//
-// АРИФМЕТИКА С ТИПАМИ (Таблица №2 из ТЗ, без boolean):
+#ifndef INTERPRETER_H
+#define INTERPRETER_H
 //   int op int       → int
 //   real op real     → real
 //   real op int      → real   (int автоматически приводится к real)
 //   int op real      → real
 //   string + string  → string (конкатенация)
-//
-// ОБЫЧНЫЕ ЛОГИЧЕСКИЕ ОПЕРАЦИИ (вариант VI.2):
-//   AND: снять R и L; (L≠0 && R≠0) ? 1 : 0
-//   OR:  снять R и L; (L≠0 || R≠0) ? 1 : 0
-//   Оба операнда уже на стеке — парсер обеспечил их вычисление.
-//
-// ДЕЛЕНИЕ НА НОЛЬ:
-//   Проверяем делитель перед DIV и MOD.
-//   Если 0 → throw runtime_error.
-// ============================================================
+//   AND: снять R и L; (L && R ? 1 : 0
+//   OR:  снять R и L; (L || R) ? 1 : 0
 #include "poliz.h"
 #include "symtable.h"
 #include <vector>
@@ -35,13 +16,14 @@
 
 class Interpreter {
     const std::vector<PolizOp>& code;   // программа в ПОЛИЗ
-    SymTable&                   sym;    // таблица переменных
-    std::stack<Val>             st;     // рабочий стек
+    SymTable& sym;    // таблица переменных
+    std::stack<Val> st;     // рабочий стек
 
     Val pop() {
-        if (st.empty())
-            throw std::runtime_error("Внутренняя ошибка: стек пуст");
-        Val v = st.top(); st.pop(); return v;
+        if (st.empty()) throw std::runtime_error("Ошибка: стек пуст");
+        Val v = st.top();
+        st.pop(); 
+        return v;
     }
     void push(Val v) { st.push(v); }
 
@@ -52,17 +34,14 @@ class Interpreter {
         return asStr(v).empty() ? 0LL : 1LL;
     }
 
-    // Выполнить арифметическую операцию над двумя операндами
-    Val arith(const Val& L, const Val& R, OpCode op) {
+    // Выполнить арифметическую операцию
+    Val ariphOp(const Val& L, const Val& R, OpCode op) {
         // Строковая конкатенация
-        if (op == OpCode::ADD &&
-            std::holds_alternative<std::string>(L) &&
-            std::holds_alternative<std::string>(R))
+        if (op == OpCode::ADD && std::holds_alternative<std::string>(L) && std::holds_alternative<std::string>(R))
             return asStr(L) + asStr(R);
 
-        // Если хотя бы один операнд вещественный → результат вещественный
-        bool anyReal = std::holds_alternative<double>(L) ||
-                       std::holds_alternative<double>(R);
+        // Если хотя бы один операнд вещественный = результат вещественный
+        bool anyReal = std::holds_alternative<double>(L) || std::holds_alternative<double>(R);
         if (anyReal) {
             double l = toReal(L), r = toReal(R);
             switch (op) {
@@ -72,8 +51,7 @@ class Interpreter {
                 case OpCode::DIV:
                     if (r == 0.0) throw std::runtime_error("Деление на ноль");
                     return l / r;
-                default:
-                    throw std::runtime_error("% неприменим к вещественным числам");
+                default: throw std::runtime_error("Неверная операция");
             }
         }
         // Оба операнда целые
@@ -85,19 +63,16 @@ class Interpreter {
             case OpCode::DIV:
                 if (r == 0) throw std::runtime_error("Деление на ноль");
                 return l / r;
-            case OpCode::MOD:
-                if (r == 0) throw std::runtime_error("Деление на ноль (остаток)");
-                return l % r;
-            default:
-                throw std::runtime_error("Неизвестная арифметика");
+            default: throw std::runtime_error("Неизвестная операция");
         }
     }
 
     // Выполнить операцию сравнения
     Val compare(const Val& L, const Val& R, OpCode op) {
         long long res = 0;
-        if (std::holds_alternative<std::string>(L)) {
-            // Строковое сравнение — лексикографическое
+        
+        // Строковое сравнение — ТОЛЬКО если оба операнда строки
+        if (std::holds_alternative<std::string>(L) && std::holds_alternative<std::string>(R)) {
             std::string l = asStr(L), r = asStr(R);
             switch (op) {
                 case OpCode::LT:  res = l <  r; break;
@@ -108,8 +83,11 @@ class Interpreter {
                 case OpCode::NEQ: res = l != r; break;
                 default: throw std::runtime_error("Неизвестное сравнение");
             }
-        } else {
-            // Числовое сравнение — приводим к double
+            return res;
+        }
+        
+        if ((std::holds_alternative<long long>(L) || std::holds_alternative<double>(L)) &&
+            (std::holds_alternative<long long>(R) || std::holds_alternative<double>(R))) {
             double l = toReal(L), r = toReal(R);
             switch (op) {
                 case OpCode::LT:  res = l <  r; break;
@@ -120,56 +98,46 @@ class Interpreter {
                 case OpCode::NEQ: res = l != r; break;
                 default: throw std::runtime_error("Неизвестное сравнение");
             }
+            return res;
         }
-        return res;
+        
+        // Несовместимые типы (например, string и int)
+        throw std::runtime_error("Несовместимые типы в операции сравнения");
     }
 
 public:
-    Interpreter(const std::vector<PolizOp>& c, SymTable& s)
-        : code(c), sym(s) {}
+    Interpreter(const std::vector<PolizOp>& c, SymTable& s): code(c), sym(s) {}
 
     void run() {
-        int pc = 0;
+        size_t pc = 0;
 
-        while (pc < static_cast<int>(code.size())) {
+        while (pc < code.size()) {
             const PolizOp& op = code[pc];
 
             switch (op.code) {
 
-                case OpCode::PUSH_INT:  push(op.ival); break;
+                case OpCode::PUSH_INT: push(op.ival); break;
                 case OpCode::PUSH_REAL: push(op.rval); break;
-                case OpCode::PUSH_STR:  push(op.sval); break;
+                case OpCode::PUSH_STR: push(op.sval); break;
 
-                case OpCode::LOAD:
-                    push(sym.value(op.sval));
-                    break;
-
-                case OpCode::STORE: {
-                    // Присваивание: значение ОСТАЁТСЯ на стеке
-                    // (как в C: результат a = expr равен expr)
-                    Val v = st.top();
-                    sym.set(op.sval, v);
-                    break;
-                }
-
-                case OpCode::POP:
-                    pop();
-                    break;
+                case OpCode::LOAD: push(sym.value(op.sval)); break;
+                case OpCode::STORE: {Val v = st.top(); sym.set(op.sval, v); break;}
+                case OpCode::POP: pop(); break;
 
                 case OpCode::ADD:
                 case OpCode::SUB:
                 case OpCode::MUL:
-                case OpCode::DIV:
-                case OpCode::MOD: {
-                    Val R = pop(); Val L = pop();
-                    push(arith(L, R, op.code));
+                case OpCode::DIV: {
+                    Val R = pop();
+                    Val L = pop();
+                    push(ariphOp(L, R, op.code));
                     break;
                 }
 
                 case OpCode::NEG: {
                     Val v = pop();
-                    if      (std::holds_alternative<long long>(v)) push(-asInt(v));
-                    else if (std::holds_alternative<double>(v))    push(-asReal(v));
+                    if (std::holds_alternative<long long>(v)) push(-asInt(v));
+                    else if (std::holds_alternative<double>(v)) push(-asReal(v));
                     else throw std::runtime_error("Унарный минус неприменим к строке");
                     break;
                 }
@@ -181,16 +149,14 @@ public:
                     break;
                 }
 
-                // Обычные вычисления (вариант VI.2):
-                // Оба операнда уже на стеке — просто применяем операцию
                 case OpCode::AND: {
                     Val R = pop(); Val L = pop();
-                    push((toBool(L) != 0 && toBool(R) != 0) ? 1LL : 0LL);
+                    push((toBool(L) && toBool(R)) ? 1LL : 0LL);
                     break;
                 }
                 case OpCode::OR: {
                     Val R = pop(); Val L = pop();
-                    push((toBool(L) != 0 || toBool(R) != 0) ? 1LL : 0LL);
+                    push((toBool(L) || toBool(R)) ? 1LL : 0LL);
                     break;
                 }
                 case OpCode::NOT: {
@@ -200,47 +166,54 @@ public:
                 }
 
                 case OpCode::JMP:
-                    pc = static_cast<int>(op.ival);
+                    pc = op.ival;
                     continue;   // не делаем pc++ в конце цикла
 
                 case OpCode::JZ: {
                     Val v = pop();
-                    if (toBool(v) == 0) { pc = static_cast<int>(op.ival); continue; }
+                    if (toBool(v) == 0) { pc = op.ival; continue; }
                     break;
                 }
 
                 case OpCode::JNZ: {
-                    // Используется в for: прыгаем если I > limit (результат GT != 0)
+                    // Используется в for: прыгаем если I > limit
                     Val v = pop();
-                    if (toBool(v) != 0) { pc = static_cast<int>(op.ival); continue; }
+                    if (toBool(v) != 0) { pc = op.ival; continue; }
                     break;
                 }
 
                 case OpCode::READ: {
                     auto& e = sym.get(op.sval);
+                    
                     if (e.type == VType::INT) {
-                        long long v; std::cin >> v; sym.set(op.sval, v);
+                        long long v;
+                        if (!(std::cin >> v)) throw std::runtime_error("Ошибка ввода: expected целое число" + op.sval);
+                        sym.set(op.sval, v);
+                        
                     } else if (e.type == VType::REAL) {
-                        double v; std::cin >> v; sym.set(op.sval, v);
-                    } else {
-                        std::string v; std::cin >> v; sym.set(op.sval, v);
+                        double v;
+                        if (!(std::cin >> v)) throw std::runtime_error("Ошибка ввода: expected вещественное " + op.sval);
+                        sym.set(op.sval, v);
+                        
+                    } else {  // STRING
+                        std::string v;
+                        std::cin >> v;  // читаем слово (до пробела)
+                        sym.set(op.sval, v);
                     }
                     break;
                 }
-
+                
                 case OpCode::WRITE: {
                     Val v = pop();
                     std::cout << valToStr(v) << " ";
                     break;
                 }
 
-                default:
-                    throw std::runtime_error(
-                        "Неизвестный опкод: " +
-                        std::to_string(static_cast<int>(op.code)));
+                default: throw std::runtime_error("Неизвестный опкод: " + std::to_string(static_cast<int>(op.code)));
             }
             pc++;
         }
         std::cout << std::endl;
     }
 };
+#endif // INTERPRETER_H
