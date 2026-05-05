@@ -26,28 +26,23 @@ enum type_of_lex {
     LEX_READ, LEX_THEN, LEX_WHILE, LEX_WRITE,
     LEX_FOR, LEX_STEP, LEX_UNTIL, LEX_GOTO,
     LEX_REAL, LEX_STRING,
-    LEX_FIN,
     
     // Разделители и операторы
-    LEX_SEMICOLON, LEX_COMMA, LEX_ASSIGN,   // '='
-    LEX_LPAREN, LEX_RPAREN, LEX_LBRACE, LEX_RBRACE,  // { }
+    LEX_SEMICOLON, LEX_COMMA, LEX_ASSIGN, LEX_COLON,
+    LEX_LPAREN, LEX_RPAREN, LEX_LBRACE, LEX_RBRACE,
     LEX_EQ, LEX_LT, LEX_GT, LEX_LEQ, LEX_NEQ, LEX_GEQ,
-    LEX_PLUS, LEX_MINUS, LEX_TIMES, LEX_SLASH, LEX_COLON,
+    LEX_PLUS, LEX_MINUS, LEX_TIMES, LEX_SLASH,
     
     // Операнды
-    LEX_NUM,           // целое число
-    LEX_REAL_NUM,      // вещественное число
-    LEX_STRING_LIT,    // строковый литерал
-    LEX_ID,
+    LEX_NUM, LEX_REAL_NUM, LEX_STRING_LIT, LEX_ID,
     
     // Служебные лексемы ПОЛИЗа
-    POLIZ_LABEL,       // метка
-    POLIZ_ADDRESS,     // адрес переменной
-    POLIZ_GO,          // безусловный переход "!"
-    POLIZ_FGO,         // условный переход по лжи "!F"
-    POLIZ_UMINUS       // унарный минус
+    POLIZ_LABEL, POLIZ_ADDRESS, POLIZ_GO, POLIZ_FGO, POLIZ_UMINUS,
+    
+    LEX_FIN
 };
 
+const int TOKEN_OFFSET = LEX_SEMICOLON;  // первый токен разделителя
 
 // Лексема
 
@@ -174,6 +169,11 @@ int put(const string& buf) {
     return TID.size() - 1;
 }
 
+// Прототипы функций (объявления)
+int put_string(const string& s);
+string get_string_value(int idx);
+int put_real(double d);
+double get_real_value(int idx);
 
 // Лексический анализатор (Scanner)
 
@@ -260,7 +260,7 @@ Lex Scanner::get_lex() {
                     } else {
                         buf = "/";
                         j = look(buf, TD);
-                        return Lex((type_of_lex)(j + LEX_FIN), j);
+                        return Lex((type_of_lex)(j + TOKEN_OFFSET), j);
                     }
                 }
                 else if (c == '"') {
@@ -281,7 +281,7 @@ Lex Scanner::get_lex() {
                 else {
                     buf.clear();
                     buf.push_back(c);
-                    if ((j = look(buf, TD))) { return Lex((type_of_lex)(j + LEX_FIN), j);}
+                    if ((j = look(buf, TD))) { return Lex((type_of_lex)(j + TOKEN_OFFSET), j);}
                     else {
                         string err = "Unknown character: ";
                         err += c;
@@ -361,12 +361,12 @@ Lex Scanner::get_lex() {
                 if (c == '=') {
                     buf.push_back(c);
                     j = look(buf, TD);
-                    return Lex((type_of_lex)(j + LEX_FIN), j);
+                    return Lex((type_of_lex)(j + TOKEN_OFFSET), j);
                 }
                 else {
                     ungetc(c, fp);
                     j = look(buf, TD);
-                    return Lex((type_of_lex)(j + LEX_FIN), j);
+                    return Lex((type_of_lex)(j + TOKEN_OFFSET), j);
                 }
                 break;
                 
@@ -1017,9 +1017,9 @@ private:
     
     // Проверки переполнения для целых чисел
     void check_overflow_add(int a, int b) {
-        if ((b > 0 && a >  - b) ||
-            (b < 0 && a < INT_MIN - b))
-            throw "Integer overflow in addition";}
+        if ((b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b))
+            throw "Integer overflow in addition";
+        }
     
     void check_overflow_mul(int a, int b) {
         if (a != 0 && b != 0) {
