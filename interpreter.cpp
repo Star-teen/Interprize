@@ -10,24 +10,23 @@
 using namespace std;
 
 // Конфигурация (защита от уязвимостей)
-const int MAX_IDENT_LEN = 255;           // максимальная длина идентификатора
-const int MAX_COMMENT_LEN = 65536;       // максимальная длина комментария
-const int MAX_RECURSION_DEPTH = 1000;    // максимальная глубина рекурсии парсера
-const int MAX_STACK_DEPTH = 10000;       // максимальная глубина стека значений
-const int MAX_EXECUTION_STEPS = 10000000;// максимальное число шагов интерпретации
+const int MAX_IDENT_LEN = 255;
+const int MAX_COMMENT_LEN = 65536;
+const int MAX_RECURSION_DEPTH = 1000;
+const int MAX_STACK_DEPTH = 10000;
+const int MAX_EXECUTION_STEPS = 10000000;
 
 // Типы лексем
 enum type_of_lex {
-    LEX_NULL,
+    LEX_NULL,  // 0
     
-    // Служебные слова
+    // Служебные слова (индексы 1-20)
     LEX_AND, LEX_BEGIN, LEX_DO, LEX_ELSE, LEX_END,
-    LEX_IF, LEX_INT, LEX_NOT, LEX_OR, LEX_PROGRAM,
-    LEX_READ, LEX_THEN, LEX_WHILE, LEX_WRITE,
-    LEX_FOR, LEX_STEP, LEX_UNTIL, LEX_GOTO,
-    LEX_REAL, LEX_STRING,
+    LEX_FOR, LEX_GOTO, LEX_IF, LEX_INT,
+    LEX_NOT, LEX_OR, LEX_PROGRAM, LEX_READ, LEX_REAL,
+    LEX_STEP, LEX_STRING, LEX_THEN, LEX_UNTIL, LEX_WHILE, LEX_WRITE,
     
-    // Разделители и операторы
+    // Разделители и операторы (начинаются с 21)
     LEX_SEMICOLON, LEX_COMMA, LEX_ASSIGN, LEX_COLON,
     LEX_LPAREN, LEX_RPAREN, LEX_LBRACE, LEX_RBRACE,
     LEX_EQ, LEX_LT, LEX_GT, LEX_LEQ, LEX_NEQ, LEX_GEQ,
@@ -42,10 +41,7 @@ enum type_of_lex {
     LEX_FIN
 };
 
-const int TOKEN_OFFSET = LEX_SEMICOLON;  // первый токен разделителя
-
 // Лексема
-
 class Lex {
     type_of_lex t_lex;
     int v_lex;
@@ -59,11 +55,9 @@ public:
     }
 };
 
-
 // Значение (для интерпретатора)
-
 struct Value {
-    type_of_lex type;   // LEX_INT, LEX_REAL, LEX_STRING
+    type_of_lex type;
     union {
         int int_val;
         double real_val;
@@ -93,23 +87,20 @@ struct Value {
     }
 };
 
-
 // Идентификатор (таблица символов)
-
 class Ident {
     string name;
-    type_of_lex type;      // LEX_INT, LEX_REAL, LEX_STRING
-    bool declared;         // описан ли
-    bool initialized;      // проинициализирован ли
-    bool is_label;         // является ли меткой
-    bool label_defined;    // определена ли метка (встретилась в коде)
-    int label_addr;        // адрес метки (позиция в ПОЛИЗе)
-    vector<int> forward_refs; // список позиций в ПОЛИЗе для отложенных адресов
+    type_of_lex type;
+    bool declared;
+    bool initialized;
+    bool is_label;
+    bool label_defined;
+    int label_addr;
+    vector<int> forward_refs;
     
-    // Значения переменных
     int int_val;
     double real_val;
-    string* str_val;       // указатель, чтобы не копировать строки
+    string* str_val;
     
 public:
     Ident() : declared(false), initialized(false), is_label(false), 
@@ -122,7 +113,6 @@ public:
     
     ~Ident() { delete str_val; }
     
-    // Геттеры
     const string& get_name() const { return name; }
     type_of_lex get_type() const { return type; }
     bool get_declared() const { return declared; }
@@ -132,7 +122,6 @@ public:
     int get_label_addr() const { return label_addr; }
     const vector<int>& get_forward_refs() const { return forward_refs; }
     
-    // Сеттеры
     void put_type(type_of_lex t) { type = t; }
     void put_declared() { declared = true; }
     void put_initialized() { initialized = true; }
@@ -142,7 +131,6 @@ public:
     void add_forward_ref(int pos) { forward_refs.push_back(pos); }
     void clear_forward_refs() { forward_refs.clear(); }
     
-    // Значения
     int get_int() const { return int_val; }
     void put_int(int v) { int_val = v; initialized = true; }
     
@@ -157,10 +145,7 @@ public:
     }
 };
 
-vector<Ident> TID;  // таблица идентификаторов
-
-
-// Поиск/добавление идентификатора в таблицу
+vector<Ident> TID;
 
 int put(const string& buf) {
     auto it = find_if(TID.begin(), TID.end(), [&buf](const Ident& id) { return id.get_name() == buf; });
@@ -169,14 +154,13 @@ int put(const string& buf) {
     return TID.size() - 1;
 }
 
-// Прототипы функций (объявления)
+// Прототипы функций
 int put_string(const string& s);
 string get_string_value(int idx);
 int put_real(double d);
 double get_real_value(int idx);
 
 // Лексический анализатор (Scanner)
-
 class Scanner {
     FILE* fp;
     char c;
@@ -204,6 +188,9 @@ class Scanner {
         return (char)ch;
     }
     
+    // Таблица соответствия индексов из TW значениям enum
+    static const type_of_lex TW_TYPE[];
+    
 public:
     static const char* TW[];
     static const char* TD[];
@@ -218,10 +205,36 @@ public:
     Lex get_lex();
 };
 
+// Таблица служебных слов (порядок ВАЖЕН и должен совпадать с enum)
+// Таблица служебных слов (порядок строго соответствует enum)
 const char* Scanner::TW[] = {
     "and", "begin", "do", "else", "end", "for", "goto", "if", "int",
     "not", "or", "program", "read", "real", "step", "string", "then",
     "until", "while", "write", NULL
+};
+
+// Таблица соответствия индексов из TW значениям type_of_lex
+const type_of_lex Scanner::TW_TYPE[] = {
+    LEX_AND,    // 0
+    LEX_BEGIN,  // 1
+    LEX_DO,     // 2
+    LEX_ELSE,   // 3
+    LEX_END,    // 4
+    LEX_FOR,    // 5
+    LEX_GOTO,   // 6
+    LEX_IF,     // 7
+    LEX_INT,    // 8
+    LEX_NOT,    // 9
+    LEX_OR,     // 10
+    LEX_PROGRAM,// 11 ← здесь!
+    LEX_READ,   // 12
+    LEX_REAL,   // 13
+    LEX_STEP,   // 14
+    LEX_STRING, // 15
+    LEX_THEN,   // 16
+    LEX_UNTIL,  // 17
+    LEX_WHILE,  // 18
+    LEX_WRITE   // 19
 };
 
 const char* Scanner::TD[] = {
@@ -254,13 +267,14 @@ Lex Scanner::get_lex() {
                 }
                 else if (c == '/') {
                     if (peek() == '*') {
-                        gc(); // прочитать '*'
+                        gc();
                         comment_len = 0;
                         CS = COM;
                     } else {
                         buf = "/";
                         j = look(buf, TD);
-                        return Lex((type_of_lex)(j + TOKEN_OFFSET), j);
+                        // Для разделителей: LEX_SEMICOLON + j (но j может быть 0 для @)
+                        return Lex((type_of_lex)(LEX_SEMICOLON + j), j);
                     }
                 }
                 else if (c == '"') {
@@ -281,24 +295,57 @@ Lex Scanner::get_lex() {
                 else {
                     buf.clear();
                     buf.push_back(c);
-                    if ((j = look(buf, TD))) { return Lex((type_of_lex)(j + TOKEN_OFFSET), j);}
-                    else {
-                        string err = "Unknown character: ";
-                        err += c;
-                        throw err.c_str();
-                    }
+                    // Прямое распознавание разделителей
+                    if (buf == "{") return Lex(LEX_LBRACE, 0);
+                    if (buf == "}") return Lex(LEX_RBRACE, 0);
+                    if (buf == ";") return Lex(LEX_SEMICOLON, 0);
+                    if (buf == ",") return Lex(LEX_COMMA, 0);
+                    if (buf == "=") return Lex(LEX_ASSIGN, 0);
+                    if (buf == "(") return Lex(LEX_LPAREN, 0);
+                    if (buf == ")") return Lex(LEX_RPAREN, 0);
+                    if (buf == "+") return Lex(LEX_PLUS, 0);
+                    if (buf == "-") return Lex(LEX_MINUS, 0);
+                    if (buf == "*") return Lex(LEX_TIMES, 0);
+                    if (buf == "<") return Lex(LEX_LT, 0);
+                    if (buf == ">") return Lex(LEX_GT, 0);
+                    
+                    string err = "Unknown character: ";
+                    err += c;
+                    throw err.c_str();
                 }
                 break;
                 
-            case IDENT:
+                case IDENT:
                 if (isalpha(c) || isdigit(c)) { buf.push_back(c);}
                 else {
                     ungetc(c, fp);
-                    if ((j = look(buf, TW))) { return Lex((type_of_lex)j, j);}
+                    // Используем прямой switch вместо look
+                    type_of_lex kw_type;
+                    if (buf == "and") kw_type = LEX_AND;
+                    else if (buf == "begin") kw_type = LEX_BEGIN;
+                    else if (buf == "do") kw_type = LEX_DO;
+                    else if (buf == "else") kw_type = LEX_ELSE;
+                    else if (buf == "end") kw_type = LEX_END;
+                    else if (buf == "for") kw_type = LEX_FOR;
+                    else if (buf == "goto") kw_type = LEX_GOTO;
+                    else if (buf == "if") kw_type = LEX_IF;
+                    else if (buf == "int") kw_type = LEX_INT;
+                    else if (buf == "not") kw_type = LEX_NOT;
+                    else if (buf == "or") kw_type = LEX_OR;
+                    else if (buf == "program") kw_type = LEX_PROGRAM;
+                    else if (buf == "read") kw_type = LEX_READ;
+                    else if (buf == "real") kw_type = LEX_REAL;
+                    else if (buf == "step") kw_type = LEX_STEP;
+                    else if (buf == "string") kw_type = LEX_STRING;
+                    else if (buf == "then") kw_type = LEX_THEN;
+                    else if (buf == "until") kw_type = LEX_UNTIL;
+                    else if (buf == "while") kw_type = LEX_WHILE;
+                    else if (buf == "write") kw_type = LEX_WRITE;
                     else {
-                        j = put(buf);
+                        int j = put(buf);
                         return Lex(LEX_ID, j);
                     }
+                    return Lex(kw_type, 0);
                 }
                 break;
                 
@@ -331,7 +378,7 @@ Lex Scanner::get_lex() {
             
             case COM:
                 if (c == '*' && peek() == '/') {
-                    gc(); // прочитать '/'
+                    gc();
                     CS = H;
                     comment_len = 0;
                 } else if (c == '@') { throw "Unclosed comment";
@@ -361,12 +408,12 @@ Lex Scanner::get_lex() {
                 if (c == '=') {
                     buf.push_back(c);
                     j = look(buf, TD);
-                    return Lex((type_of_lex)(j + TOKEN_OFFSET), j);
+                    return Lex((type_of_lex)(LEX_SEMICOLON + j), j);
                 }
                 else {
                     ungetc(c, fp);
                     j = look(buf, TD);
-                    return Lex((type_of_lex)(j + TOKEN_OFFSET), j);
+                    return Lex((type_of_lex)(LEX_SEMICOLON + j), j);
                 }
                 break;
                 
@@ -384,7 +431,6 @@ Lex Scanner::get_lex() {
 
 // Синтаксический и семантический анализатор с генерацией ПОЛИЗа
 
-// Таблицы для строк и вещественных чисел
 vector<string> string_table;
 vector<double> real_table;
 
@@ -408,7 +454,6 @@ double get_real_value(int idx) {
     return real_table[idx];
 }
 
-// Вспомогательная структура для хранения констант при инициализации
 struct InitValue {
     type_of_lex type;
     int int_val;
@@ -427,7 +472,7 @@ private:
     Scanner scan;
     stack<type_of_lex> st_lex;
     int recursion_depth;
-    int temp_counter;      // для генерации временных переменных
+    int temp_counter;
     
     void gl() {
         curr_lex = scan.get_lex();
@@ -436,7 +481,6 @@ private:
     }
     
     void enter() {if (++recursion_depth > MAX_RECURSION_DEPTH) throw "Parser recursion depth exceeded";}
-    
     void leave() { recursion_depth--; }
     
     template<typename T>
@@ -446,7 +490,6 @@ private:
         st.pop();
     }
     
-    // Проверка идентификатора (для использования в выражениях)
     void check_id() {
         if (!TID[c_val].get_declared()) throw "Variable not declared";
         st_lex.push(TID[c_val].get_type());
@@ -454,7 +497,6 @@ private:
     
     void check_id_in_read() {if (!TID[c_val].get_declared())throw "Variable not declared in read";}
     
-    // Проверка типов для бинарной операции
     void check_op() {
         type_of_lex t1, t2, op, result_type;
         
@@ -464,27 +506,24 @@ private:
         from_st(st_lex, op);
         from_st(st_lex, t1);
         
-        // Арифметика
         if (op == LEX_PLUS || op == LEX_MINUS || op == LEX_TIMES || op == LEX_SLASH) {
             if ((t1 == LEX_INT || t1 == LEX_REAL) && (t2 == LEX_INT || t2 == LEX_REAL)) {
                 result_type = (t1 == LEX_REAL || t2 == LEX_REAL) ? LEX_REAL : LEX_INT;
             }
             else if (t1 == LEX_STRING && t2 == LEX_STRING && op == LEX_PLUS) {
-                result_type = LEX_STRING;  // конкатенация строк
+                result_type = LEX_STRING;
             }
             else {throw "Arithmetic operation requires numeric operands";}
         }
-        // Сравнения
         else if (op == LEX_EQ || op == LEX_NEQ || op == LEX_LT || op == LEX_GT || op == LEX_LEQ || op == LEX_GEQ) {
             if ((t1 == LEX_INT || t1 == LEX_REAL) && (t2 == LEX_INT || t2 == LEX_REAL)) {
-                result_type = LEX_INT;  // 0 или 1
+                result_type = LEX_INT;
             }
             else if (t1 == LEX_STRING && t2 == LEX_STRING) {
                 result_type = LEX_INT;
             }
             else {throw "Comparison requires compatible types";}
         }
-        // Логические операции (операнды - целые, результат - целый)
         else if (op == LEX_AND || op == LEX_OR) {
             if (t1 == LEX_INT && t2 == LEX_INT) { 
                 result_type = LEX_INT;
@@ -496,27 +535,23 @@ private:
         poliz.push_back(Lex(op));
     }
     
-    // Проверка условия (должно быть целым, 0 = false)
     void check_condition() {
         if (st_lex.empty()) throw "Not enough operands for condition";
         if (st_lex.top() != LEX_INT) throw "Condition must be integer (0=false, non-0=true)";
         st_lex.pop();
     }
     
-    // Проверка типов для присваивания
     void check_assign() {
         type_of_lex t1, t2;
         if (st_lex.size() < 2) throw "Not enough operands for assignment";
-        from_st(st_lex, t2);  // тип правого операнда
-        from_st(st_lex, t1);  // тип левого операнда (переменной)
+        from_st(st_lex, t2);
+        from_st(st_lex, t1);
         
-        // Допустимые преобразования: int -> real
         if (t1 == LEX_REAL && t2 == LEX_INT) { st_lex.push(LEX_REAL); }
         else if (t1 == t2) { st_lex.push(t1); }
         else { throw "Assignment type mismatch"; }
     }
     
-    // Добавление переменной в TID
     void add_variable(const string& name, type_of_lex var_type, bool has_init, const InitValue& init_val) {
         int idx = put(name);
         if (TID[idx].get_declared()) { throw "Variable '" + name + "' declared twice";}
@@ -540,7 +575,6 @@ private:
         }
     }
     
-    // Создание временной переменной
     int create_temp_var(type_of_lex type) {
         string name = "__temp_" + to_string(temp_counter++);
         int idx = put(name);
@@ -558,28 +592,25 @@ public:
         gl();
         P();
         if (c_type != LEX_FIN) throw "Expected end of program";
-    //    cout << "Syntax OK, POLIZ size: " << poliz.size() << endl;
+        cout << "Syntax OK, POLIZ size: " << poliz.size() << endl;
     }
     
-    // Грамматика
-    void P();   // program
-    void D();   // declaration
-    void S();   // statement
-    void E();   // expression
-    void E1();  // + - or
-    void T();   // * /
-    void F();   // factor
+    void P();
+    void D();
+    void S();
+    void E();
+    void E1();
+    void T();
+    void F();
 };
 
-
-// Реализация правил грамматики
-
-
 void Parser::P() {
-    if (c_type == LEX_PROGRAM) { gl();
-    } else { throw "Expected 'program'"; }
+    if (c_type == LEX_PROGRAM) { 
+        gl();
+    } else { 
+        throw "Expected 'program'"; 
+    }
     
-    // Описания: { описание ; }
     if (c_type == LEX_LBRACE) {
         gl();
         while (c_type != LEX_RBRACE && c_type != LEX_FIN) {
@@ -589,15 +620,18 @@ void Parser::P() {
         }
         if (c_type == LEX_RBRACE) gl();
         else throw "Expected '}' after declarations";
-    } else { throw "Expected '{' after program"; }
+    } else { 
+        throw "Expected '{' after program"; 
+    }
     
-    // Операторы: { оператор }
     if (c_type == LEX_LBRACE) {
         gl();
         while (c_type != LEX_RBRACE && c_type != LEX_FIN) { S(); }
         if (c_type == LEX_RBRACE) gl();
         else throw "Expected '}' after statements";
-    } else { throw "Expected '{' before statements"; }
+    } else { 
+        throw "Expected '{' before statements"; 
+    }
 }
 
 void Parser::D() {
@@ -657,23 +691,18 @@ void Parser::D() {
 }
 
 void Parser::S() {
-    //Метка: идентификатор : оператор
     if (c_type == LEX_ID) {
-        // Проверяем, что следующий токен - ':'
-        // Сохранили позицию
         int saved_pos = poliz.size();
         type_of_lex saved_type = c_type;
         int saved_val = c_val;
         Lex saved_lex = curr_lex;
         
-        // Временный просмотр вперёд
-        gl(); // читаем после ID
-        if (c_type == LEX_COLON) { // Если : Это метка
+        gl();
+        if (c_type == LEX_COLON) {
             string label_name = TID[saved_val].get_name();
             int label_idx = saved_val;
-            gl(); // прочитать ':'
+            gl();
             
-            // Добавить или найти метку
             if (label_idx >= (int)TID.size()) { label_idx = put(label_name); }
             
             if (TID[label_idx].get_is_label() && TID[label_idx].get_label_defined()) { throw "Label '" + label_name + "' already defined"; }
@@ -682,22 +711,19 @@ void Parser::S() {
             TID[label_idx].put_label_defined(true);
             TID[label_idx].put_label_addr(poliz.size());
             
-            // Заполнить forward-ссылки
             for (int pos : TID[label_idx].get_forward_refs()) { poliz[pos] = Lex(POLIZ_LABEL, poliz.size()); }
             TID[label_idx].clear_forward_refs();
             
             poliz.push_back(Lex(POLIZ_LABEL, poliz.size()));
-            S();  // разбор помеченного оператора
+            S();
             return;
         } else {
-            // Не метка — возвращаемся назад
             c_type = saved_type;
             c_val = saved_val;
             curr_lex = saved_lex;
         }
     }
     
-    // === Присваивание ===
     if (c_type == LEX_ID) {
         check_id();
         poliz.push_back(Lex(POLIZ_ADDRESS, c_val));
@@ -712,14 +738,13 @@ void Parser::S() {
         return;
     }
     
-    //  if (expr) stmt [else stmt] 
     if (c_type == LEX_IF) {
         gl();
         if (c_type != LEX_LPAREN) throw "Expected '(' after if";
         gl();
         
         int false_label = poliz.size();
-        poliz.push_back(Lex());  // место для !F
+        poliz.push_back(Lex());
         E();
         check_condition();
         if (c_type != LEX_RPAREN) throw "Expected ')' after condition";
@@ -728,20 +753,19 @@ void Parser::S() {
         poliz.push_back(Lex(POLIZ_FGO));
         poliz[false_label] = Lex(POLIZ_LABEL, poliz.size());
         
-        S();  // then-ветка
+        S();
         
         if (c_type == LEX_ELSE) {
             gl();
             int go_label = poliz.size();
-            poliz.push_back(Lex());  // место для GO
+            poliz.push_back(Lex());
             poliz.push_back(Lex(POLIZ_GO));
             poliz[go_label] = Lex(POLIZ_LABEL, poliz.size());
-            S();  // else-ветка
+            S();
         }
         return;
     }
     
-    // while (expr) stmt
     if (c_type == LEX_WHILE) {
         int start_label = poliz.size();
         gl();
@@ -749,7 +773,7 @@ void Parser::S() {
         gl();
         
         int cond_label = poliz.size();
-        poliz.push_back(Lex());  // место для !F
+        poliz.push_back(Lex());
         E();
         check_condition();
         if (c_type != LEX_RPAREN) throw "Expected ')' after condition";
@@ -758,14 +782,13 @@ void Parser::S() {
         poliz.push_back(Lex(POLIZ_FGO));
         poliz[cond_label] = Lex(POLIZ_LABEL, poliz.size());
         
-        S();  // тело
+        S();
         
         poliz.push_back(Lex(POLIZ_GO));
         poliz.push_back(Lex(POLIZ_LABEL, start_label));
         return;
     }
     
-    // === for I = E1 step E2 until E3 do stmt ===
     if (c_type == LEX_FOR) {
         gl();
         if (c_type != LEX_ID) throw "Expected identifier after for";
@@ -778,7 +801,6 @@ void Parser::S() {
         if (c_type != LEX_ASSIGN) throw "Expected '=' after for variable";
         gl();
         
-        // 1. Инициализация: I = E1
         poliz.push_back(Lex(POLIZ_ADDRESS, var_idx));
         E();
         check_assign();
@@ -787,7 +809,6 @@ void Parser::S() {
         if (c_type != LEX_STEP) throw "Expected 'step'";
         gl();
         
-        // 2. Шаг: сохраняем во временную переменную
         int step_temp = create_temp_var(LEX_INT);
         poliz.push_back(Lex(POLIZ_ADDRESS, step_temp));
         E();
@@ -798,7 +819,6 @@ void Parser::S() {
         if (c_type != LEX_UNTIL) throw "Expected 'until'";
         gl();
         
-        // 3. Конечное значение: сохраняем во временную переменную
         int limit_temp = create_temp_var(LEX_INT);
         poliz.push_back(Lex(POLIZ_ADDRESS, limit_temp));
         E();
@@ -809,39 +829,31 @@ void Parser::S() {
         if (c_type != LEX_DO) throw "Expected 'do'";
         gl();
         
-        // 4. Метка начала цикла
         int start_label = poliz.size();
         
-        // 5. Проверка условия выхода (упрощённо: считаем шаг положительным)
-        //    Для отрицательного шага нужно использовать >=
         poliz.push_back(Lex(POLIZ_ADDRESS, var_idx));
         poliz.push_back(Lex(POLIZ_ADDRESS, limit_temp));
         poliz.push_back(Lex(LEX_LEQ));
         
         int exit_label = poliz.size();
-        poliz.push_back(Lex());  // место для !F
+        poliz.push_back(Lex());
         poliz.push_back(Lex(POLIZ_FGO));
         
-        // 6. Тело
         S();
         
-        // 7. Инкремент: I = I + step
         poliz.push_back(Lex(POLIZ_ADDRESS, var_idx));
         poliz.push_back(Lex(POLIZ_ADDRESS, var_idx));
         poliz.push_back(Lex(POLIZ_ADDRESS, step_temp));
         poliz.push_back(Lex(LEX_PLUS));
         poliz.push_back(Lex(LEX_ASSIGN));
         
-        // 8. Переход на начало
         poliz.push_back(Lex(POLIZ_GO));
         poliz.push_back(Lex(POLIZ_LABEL, start_label));
         
-        // 9. Метка выхода
         poliz[exit_label] = Lex(POLIZ_LABEL, poliz.size());
         return;
     }
     
-    // === goto label; ===
     if (c_type == LEX_GOTO) {
         gl();
         if (c_type != LEX_ID) throw "Expected label after goto";
@@ -860,7 +872,7 @@ void Parser::S() {
         
         int go_pos = poliz.size();
         poliz.push_back(Lex(POLIZ_GO));
-        poliz.push_back(Lex());  // место для адреса
+        poliz.push_back(Lex());
         
         if (TID[label_idx].get_label_defined()) { 
             poliz[go_pos + 1] = Lex(POLIZ_LABEL, TID[label_idx].get_label_addr());
@@ -868,7 +880,6 @@ void Parser::S() {
         return;
     }
     
-    // === read(id); ===
     if (c_type == LEX_READ) {
         gl();
         if (c_type != LEX_LPAREN) throw "Expected '(' after read";
@@ -885,7 +896,6 @@ void Parser::S() {
         return;
     }
     
-    // === write(expr, expr, ...); ===
     if (c_type == LEX_WRITE) {
         gl();
         if (c_type != LEX_LPAREN) throw "Expected '(' after write";
@@ -902,7 +912,6 @@ void Parser::S() {
         return;
     }
     
-    // === Составной оператор { ... } ===
     if (c_type == LEX_LBRACE) {
         gl();
         while (c_type != LEX_RBRACE && c_type != LEX_FIN) S();
@@ -911,19 +920,16 @@ void Parser::S() {
         return;
     }
     
-    // === Пустой оператор ===
     if (c_type == LEX_SEMICOLON) {
         gl();
         return;
     }
     
-    // === Оператор-выражение ===
     E();
     if (c_type != LEX_SEMICOLON) throw "Expected ';' after expression statement";
     gl();
 }
 
-// Выражения с учётом приоритетов
 void Parser::E() {
     E1();
     if (c_type == LEX_EQ || c_type == LEX_LT || c_type == LEX_GT || c_type == LEX_LEQ || c_type == LEX_NEQ || c_type == LEX_GEQ) {
@@ -1002,9 +1008,6 @@ void Parser::F() {
     } else {throw "Unexpected token in factor";}
 }
 
-
-// Интерпретатор ПОЛИЗа (Executer) — ИСПРАВЛЕННЫЙ
-
 class Executer {
 private:
     stack<Value> args;
@@ -1015,11 +1018,10 @@ private:
     void check_bounds(int idx, int size, const string& context) {
         if (idx < 0 || idx >= size) throw "Index out of bounds in " + context;}
     
-    // Проверки переполнения для целых чисел
     void check_overflow_add(int a, int b) {
         if ((b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b))
             throw "Integer overflow in addition";
-        }
+    }
     
     void check_overflow_mul(int a, int b) {
         if (a != 0 && b != 0) {
@@ -1027,7 +1029,8 @@ private:
                 (a < 0 && b < 0 && a > INT_MAX / b) ||
                 (a > 0 && b < 0 && b < INT_MIN / a) ||
                 (a < 0 && b > 0 && a < INT_MIN / b))
-                throw "Integer overflow in multiplication";}
+                throw "Integer overflow in multiplication";
+        }
     }
     
     void check_overflow_sub(int a, int b) {
@@ -1058,7 +1061,6 @@ public:
             Lex pc_el = poliz[index];
             
             switch (pc_el.get_type()) {
-                // Операнды
                 case LEX_NUM:
                     check_stack_depth();
                     args.push(Value(pc_el.get_value()));
@@ -1084,7 +1086,6 @@ public:
                     args.push(Value(pc_el.get_value()));
                     break;
                 
-                // Переменная (взять значение)
                 case LEX_ID: {
                     int idx = pc_el.get_value();
                     check_bounds(idx, TID.size(), "LEX_ID");
@@ -1097,7 +1098,6 @@ public:
                     break;
                 }
                 
-                // Унарные операции
                 case POLIZ_UMINUS: {
                     Value v;
                     from_st(args, v);
@@ -1120,7 +1120,6 @@ public:
                     break;
                 }
                 
-                // Логические операции
                 case LEX_OR: {
                     Value b, a;
                     from_st(args, b);
@@ -1141,7 +1140,6 @@ public:
                     break;
                 }
                 
-                // Арифметика
                 case LEX_PLUS: {
                     Value b, a;
                     from_st(args, b);
@@ -1227,7 +1225,6 @@ public:
                     from_st(args, b);
                     from_st(args, a);
                     
-                    // Проверка деления на ноль
                     if (b.type == LEX_INT && b.data.int_val == 0) throw "Division by zero";
                     if (b.type == LEX_REAL && b.data.real_val == 0.0) throw "Division by zero";
                     
@@ -1251,7 +1248,6 @@ public:
                     break;
                 }
                 
-                // Сравнения
                 case LEX_EQ: {
                     Value b, a;
                     from_st(args, b);
@@ -1348,7 +1344,6 @@ public:
                     break;
                 }
                 
-                // Переходы
                 case POLIZ_GO: {
                     Value addr;
                     from_st(args, addr);
@@ -1373,7 +1368,6 @@ public:
                     break;
                 }
                 
-                // Присваивание
                 case LEX_ASSIGN: {
                     Value val, addr_val;
                     from_st(args, val);
@@ -1406,7 +1400,6 @@ public:
                     break;
                 }
                 
-                // Ввод
                 case LEX_READ: {
                     Value addr_val;
                     from_st(args, addr_val);
@@ -1436,7 +1429,6 @@ public:
                     break;
                 }
                 
-                // Вывод
                 case LEX_WRITE: {
                     Value v;
                     from_st(args, v);
@@ -1456,9 +1448,6 @@ public:
     }
 };
 
-
-// Главный класс интерпретатора
-
 class Interpreter {
     Parser pars;
     Executer exec;
@@ -1470,9 +1459,6 @@ public:
         exec.execute(pars.poliz);
     }
 };
-
-
-// Точка входа
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
