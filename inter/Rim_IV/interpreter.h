@@ -1,10 +1,10 @@
 #ifndef INTERPRETER_H
 #define INTERPRETER_H
-//   int op int       → int
-//   real op real     → real
-//   real op int      → real   (int is automatically promoted to real)
-//   int op real      → real
-//   string + string  → string (concatenation)
+//   int op int        int
+//   real op real      real
+//   real op int       real
+//   int op real       real
+//   string + string   string (concatenation)
 //   AND: pop R and L; (L && R ? 1 : 0)
 //   OR:  pop R and L; (L || R) ? 1 : 0
 #include "poliz.h"
@@ -13,13 +13,10 @@
 #include <stack>
 #include <iostream>
 #include <stdexcept>
-#include "debug.h"
-
 class Interpreter {
     const std::vector<PolizOp>& code;   // POLIZ program
     SymTable& sym;    // symbol table
     std::stack<Val> st;     // operand stack
-    Debugger* dbg;  // pointer to debugger (may be nullptr)
 
     Val pop() {
         if (st.empty()) throw std::runtime_error("Error: stack is empty");
@@ -108,7 +105,7 @@ class Interpreter {
     }
 
 public:
-    Interpreter(const std::vector<PolizOp>& c, SymTable& s, Debugger* d = nullptr): code(c), sym(s), dbg(d) {}
+    Interpreter(const std::vector<PolizOp>& c, SymTable& s): code(c), sym(s) {}
 
     void run() {
         size_t pc = 0;
@@ -120,9 +117,7 @@ public:
             if (steps > MAX_STEPS) throw std::runtime_error("Maximum step count exceeded (possible infinite loop)");
 
             const PolizOp& op = code[pc];
-
-            if (dbg && dbg->isEnabled()) dbg->logStep(pc, op, st);
-            
+                        
             switch (op.code) {
 
                 case OpCode::PUSH_INT: push(op.ival); break;
