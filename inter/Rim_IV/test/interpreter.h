@@ -1,10 +1,10 @@
 #ifndef INTERPRETER_H
 #define INTERPRETER_H
-//   int op int        int
-//   real op real      real
-//   real op int       real
-//   int op real       real
-//   string + string   string (concatenation)
+//   int op int       → int
+//   real op real     → real
+//   real op int      → real   (int is automatically promoted to real)
+//   int op real      → real
+//   string + string  → string (concatenation)
 //   AND: pop R and L; (L && R ? 1 : 0)
 //   OR:  pop R and L; (L || R) ? 1 : 0
 #include "poliz.h"
@@ -13,6 +13,8 @@
 #include <stack>
 #include <iostream>
 #include <stdexcept>
+#include <climits>
+
 class Interpreter {
     const std::vector<PolizOp>& code;   // POLIZ program
     SymTable& sym;    // symbol table
@@ -27,10 +29,28 @@ class Interpreter {
     void push(Val v) { st.push(v); }
 
     // Convert Val to boolean: 0 — false, everything else — true
-    long long toBool(const Val& v) {
-        if (std::holds_alternative<long long>(v)) return asInt(v) != 0 ? 1LL : 0LL;
-        if (std::holds_alternative<double>(v))    return asReal(v) != 0.0 ? 1LL : 0LL;
-        return asStr(v).empty() ? 0LL : 1LL;
+    int toBool(const Val& v) {
+        if (std::holds_alternative<int>(v)) return asInt(v) != 0 ? 1 : 0;
+        if (std::holds_alternative<double>(v))    return asReal(v) != 0.0 ? 1 : 0;
+        return asStr(v).empty() ? 0 : 1;
+    }
+
+    // Helper functions for overflow checking
+    bool willOverflowAdd(int a, int b) {
+        return (b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b);
+    }
+
+    bool willOverflowSub(int a, int b) {
+        return (b > 0 && a < INT_MIN + b) || (b < 0 && a > INT_MAX + b);
+    }
+
+    bool willOverflowMul(int a, int b) {
+        if (a == 0 || b == 0) return false;
+        if (a > 0 && b > 0 && a > INT_MAX / b) return true;
+        if (a < 0 && b < 0 && a < INT_MAX / b) return true;
+        if (a > 0 && b < 0 && b < INT_MIN / a) return true;
+        if (a < 0 && b > 0 && a < INT_MIN / b) return true;
+        return false;
     }
 
     // Perform arithmetic operation
@@ -54,47 +74,59 @@ class Interpreter {
             }
         }
         // Both operands are integers
-        long long l = asInt(L), r = asInt(R);
+        int l = asInt(L), r = asInt(R);
         switch (op) {
-            case OpCode::ADD: return l + r;
-            case OpCode::SUB: return l - r;
-            case OpCode::MUL: return l * r;
+            case OpCode::ADD:
+                if (willOverflowAdd(l, r))
+                    throw std::runtime_error("Integer overflow in addition");
+                return l + r;
+            case OpCode::SUB:
+                if (willOverflowSub(l, r))
+                    throw std::runtime_error("Integer overflow in subtraction");
+                return l - r;
+            case OpCode::MUL:
+                if (willOverflowMul(l, r))
+                    throw std::runtime_error("Integer overflow in multiplication");
+                return l * r;
             case OpCode::DIV:
                 if (r == 0) throw std::runtime_error("Division by zero");
+                if (l == INT_MIN && r == -1)
+                    throw std::runtime_error("Integer overflow in division");
                 return l / r;
-            default: throw std::runtime_error("Unknown operation");
+            default:
+                throw std::runtime_error("Unknown operation");
         }
     }
 
     // Perform comparison operation
     Val compare(const Val& L, const Val& R, OpCode op) {
-        long long res = 0;
+        int res = 0;
         
         // String comparison — ONLY if both operands are strings
         if (std::holds_alternative<std::string>(L) && std::holds_alternative<std::string>(R)) {
             std::string l = asStr(L), r = asStr(R);
             switch (op) {
-                case OpCode::LT:  res = l <  r; break;
-                case OpCode::GT:  res = l >  r; break;
-                case OpCode::LE:  res = l <= r; break;
-                case OpCode::GE:  res = l >= r; break;
-                case OpCode::EQ:  res = l == r; break;
-                case OpCode::NEQ: res = l != r; break;
+                case OpCode::LT:  res = l <  r ? 1 : 0; break;
+                case OpCode::GT:  res = l >  r ? 1 : 0; break;
+                case OpCode::LE:  res = l <= r ? 1 : 0; break;
+                case OpCode::GE:  res = l >= r ? 1 : 0; break;
+                case OpCode::EQ:  res = l == r ? 1 : 0; break;
+                case OpCode::NEQ: res = l != r ? 1 : 0; break;
                 default: throw std::runtime_error("Unknown comparison");
             }
             return res;
         }
         
-        if ((std::holds_alternative<long long>(L) || std::holds_alternative<double>(L)) &&
-            (std::holds_alternative<long long>(R) || std::holds_alternative<double>(R))) {
+        if ((std::holds_alternative<int>(L) || std::holds_alternative<double>(L)) &&
+            (std::holds_alternative<int>(R) || std::holds_alternative<double>(R))) {
             double l = toReal(L), r = toReal(R);
             switch (op) {
-                case OpCode::LT:  res = l <  r; break;
-                case OpCode::GT:  res = l >  r; break;
-                case OpCode::LE:  res = l <= r; break;
-                case OpCode::GE:  res = l >= r; break;
-                case OpCode::EQ:  res = l == r; break;
-                case OpCode::NEQ: res = l != r; break;
+                case OpCode::LT:  res = l <  r ? 1 : 0; break;
+                case OpCode::GT:  res = l >  r ? 1 : 0; break;
+                case OpCode::LE:  res = l <= r ? 1 : 0; break;
+                case OpCode::GE:  res = l >= r ? 1 : 0; break;
+                case OpCode::EQ:  res = l == r ? 1 : 0; break;
+                case OpCode::NEQ: res = l != r ? 1 : 0; break;
                 default: throw std::runtime_error("Unknown comparison");
             }
             return res;
@@ -120,7 +152,7 @@ public:
                         
             switch (op.code) {
 
-                case OpCode::PUSH_INT: push(op.ival); break;
+                case OpCode::PUSH_INT: push(static_cast<int>(op.ival)); break;
                 case OpCode::PUSH_REAL: push(op.rval); break;
                 case OpCode::PUSH_STR: push(op.sval); break;
 
@@ -140,7 +172,7 @@ public:
 
                 case OpCode::NEG: {
                     Val v = pop();
-                    if (std::holds_alternative<long long>(v)) push(-asInt(v));
+                    if (std::holds_alternative<int>(v)) push(-asInt(v));
                     else if (std::holds_alternative<double>(v)) push(-asReal(v));
                     else throw std::runtime_error("Unary minus not applicable to string");
                     break;
@@ -155,17 +187,17 @@ public:
 
                 case OpCode::AND: {
                     Val R = pop(); Val L = pop();
-                    push((toBool(L) && toBool(R)) ? 1LL : 0LL);
+                    push((toBool(L) && toBool(R)) ? 1 : 0);
                     break;
                 }
                 case OpCode::OR: {
                     Val R = pop(); Val L = pop();
-                    push((toBool(L) || toBool(R)) ? 1LL : 0LL);
+                    push((toBool(L) || toBool(R)) ? 1 : 0);
                     break;
                 }
                 case OpCode::NOT: {
                     Val v = pop();
-                    push(toBool(v) == 0 ? 1LL : 0LL);
+                    push(toBool(v) == 0 ? 1 : 0);
                     break;
                 }
 
@@ -190,7 +222,7 @@ public:
                     auto& e = sym.get(op.sval);
                     
                     if (e.type == VType::INT) {
-                        long long v;
+                        int v;
                         if (!(std::cin >> v)) throw std::runtime_error("Input error: expected integer for " + op.sval);
                         sym.set(op.sval, v);
                         

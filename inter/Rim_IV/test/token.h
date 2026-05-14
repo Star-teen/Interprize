@@ -58,8 +58,7 @@ struct Token {
     std::string val;    // textual value
     int         line;   // line number in source file
 
-    Token(TT t, std::string v, int ln)
-        : type(t), val(std::move(v)), line(ln) {}
+    Token(TT t, std::string v, int ln): type(t), val(std::move(v)), line(ln) {}
 };
 
 #endif // TOKEN_H

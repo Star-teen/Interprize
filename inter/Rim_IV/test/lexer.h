@@ -49,7 +49,7 @@ class Lexer {
         while (pos < prog_text.size() && std::isdigit((unsigned char)cur()))
             s += step_by();
 
-        // If there is a dot followed by a digit → this is REAL
+        // If there is a dot followed by a digit this is REAL
         if (cur() == '.' && std::isdigit((unsigned char)nextChar())) {
             s += step_by();   // add '.'
             while (pos < prog_text.size() && std::isdigit((unsigned char)cur()))

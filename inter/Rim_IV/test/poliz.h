@@ -5,13 +5,13 @@
 
 enum class OpCode {
     // Push value onto stack
-    PUSH_INT,   // stack ← ival (long long)
-    PUSH_REAL,  // stack ← rval (double)
-    PUSH_STR,   // stack ← sval (string)
+    PUSH_INT,   // stack  ival (long long)
+    PUSH_REAL,  // stack  rval (double)
+    PUSH_STR,   // stack  sval (string)
 
     // Variable operations
-    LOAD,       // stack ← value of variable sval
-    STORE,      // variable sval ← top of stack
+    LOAD,       // stack  value of variable sval
+    STORE,      // variable sval  top of stack
 
     // Arithmetic (pop 2 operands, push result)
     ADD,        // addition (string concatenation)
@@ -29,9 +29,9 @@ enum class OpCode {
     NEQ,        // !=
 
     // Logic
-    AND,        // pop R,L → (L != 0 && R != 0) ? 1 : 0
-    OR,         // pop R,L → (L != 0 || R != 0) ? 1 : 0
-    NOT,        // pop v   → (v == 0) ? 1 : 0
+    AND,        // pop R,L  (L != 0 && R != 0) ? 1 : 0
+    OR,         // pop R,L  (L != 0 || R != 0) ? 1 : 0
+    NOT,        // pop v    (v == 0) ? 1 : 0
 
     // Jumps
     JMP,        // unconditional jump to index ival
@@ -46,7 +46,7 @@ enum class OpCode {
 
 struct PolizOp {
     OpCode      code;
-    long long   ival = 0;
+    int         ival = 0;
     double      rval = 0.0;
     std::string sval;
 };

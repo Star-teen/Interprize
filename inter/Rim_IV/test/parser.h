@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <string>
+#include <climits>
+#include <cstdlib>
 
 class Parser {
     std::vector<Token> toks;       // token stream from lexer
@@ -21,6 +23,63 @@ class Parser {
 
     // Forward-goto: label name → list of JMP indices awaiting resolution
     std::unordered_map<std::string, std::vector<int>> fwdGotos;
+
+    // Helper function to convert string to int with overflow checking
+    int stoi_safe(const std::string& str, bool neg = false) {
+        // Skip leading whitespace
+        size_t i = 0;
+        while (i < str.size() && std::isspace(str[i])) i++;
+        
+        if (i >= str.size()) {
+            throw std::runtime_error("Empty string in integer conversion");
+        }
+        
+        // Check sign
+        bool negative = false;
+        if (str[i] == '-') {
+            negative = true;
+            i++;
+        } else if (str[i] == '+') {
+            i++;
+        }
+        
+        // Apply external negation parameter
+        if (neg) negative = !negative;
+        
+        // Convert digit by digit with overflow checking
+        int result = 0;
+        while (i < str.size() && std::isdigit(str[i])) {
+            int digit = str[i] - '0';
+            
+            // Check for overflow before multiplication
+            if (result > (INT_MAX - digit) / 10) {
+                throw std::runtime_error("Integer constant out of range (overflow)");
+            }
+            
+            result = result * 10 + digit;
+            i++;
+        }
+        
+        // Check for trailing characters
+        if (i < str.size()) {
+            throw std::runtime_error("Invalid integer format: unexpected character '" + 
+                                     std::string(1, str[i]) + "'");
+        }
+        
+        return negative ? -result : result;
+    }
+    
+    // Helper function to convert string to double
+    double stod_safe(const std::string& str, bool neg = false) {
+        char* endptr = nullptr;
+        double result = std::strtod(str.c_str(), &endptr);
+        
+        if (*endptr != '\0') {
+            throw std::runtime_error("Invalid floating-point number format");
+        }
+        
+        return neg ? -result : result;
+    }
 
     // Convenience methods
     Token& cur() { return toks[pos]; }
@@ -105,12 +164,12 @@ class Parser {
         else if (check(TT::PLUS)) { pos++; }
 
         if (check(TT::INT_L)) {
-            long long v = std::stoll(eat(TT::INT_L).val) * (neg ? -1 : 1);
+            int v = stoi_safe(eat(TT::INT_L).val, neg);
             if (expectedType == VType::REAL) return static_cast<double>(v);
             return v;
         }
         if (check(TT::REAL_L)) {
-            double v = std::stod(eat(TT::REAL_L).val) * (neg ? -1.0 : 1.0);
+            double v = stod_safe(eat(TT::REAL_L).val, neg);
             return v;
         }
         if (check(TT::STR_L)) {
@@ -226,9 +285,11 @@ class Parser {
     // Primary: literal, variable, (expression)
     void parseSimple() {
         if (check(TT::INT_L)) {
-            InterPol({ OpCode::PUSH_INT, std::stoll(eat(TT::INT_L).val) });
+            int val = stoi_safe(eat(TT::INT_L).val);
+            InterPol({ OpCode::PUSH_INT, val });
         } else if (check(TT::REAL_L)) {
-            InterPol({ OpCode::PUSH_REAL, 0, std::stod(eat(TT::REAL_L).val) });
+            double val = stod_safe(eat(TT::REAL_L).val);
+            InterPol({ OpCode::PUSH_REAL, 0, val });
         } else if (check(TT::STR_L)) {
             InterPol({ OpCode::PUSH_STR, 0, 0.0, eat(TT::STR_L).val });
         } else if (check(TT::ID)) {
@@ -263,7 +324,7 @@ class Parser {
             eat(TT::SEMICOLON);
             if (labels.count(labelName)) {
                 // Backward goto — address already known
-                InterPol({ OpCode::JMP, static_cast<long long>(labels[labelName]) });
+                InterPol({ OpCode::JMP, static_cast<int>(labels[labelName]) });
             } else {
                 // Forward goto — address unknown, will patch later
                 int idx = InterPol({ OpCode::JMP, 0 });
@@ -371,7 +432,7 @@ class Parser {
             InterPol({ OpCode::POP });
 
             // Jump back to condition check
-            InterPol({ OpCode::JMP, static_cast<long long>(checkAddr) });
+            InterPol({ OpCode::JMP, static_cast<int>(checkAddr) });
 
             // End of loop — patch exit address
             patch(jnzIdx, here());
@@ -386,7 +447,7 @@ class Parser {
             eat(TT::RPAREN);
             int jzIdx = InterPol({ OpCode::JZ, 0 });
             parseOper();
-            InterPol({ OpCode::JMP, static_cast<long long>(loopStart) });
+            InterPol({ OpCode::JMP, static_cast<int>(loopStart) });
             patch(jzIdx, here());
             return;
         }
